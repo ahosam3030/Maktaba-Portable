@@ -1,17 +1,27 @@
 /**
  * Maktaba Portable — سطح المكتب (Electron)
- * يشغّل الـ API محليًا ويفتح نافذة برنامج (بدون متصفح خارجي).
+ * يشغّل الـ API محليًا ويفتح نافذة برنامج.
  */
-const { app, BrowserWindow, dialog, shell } = require('electron');
+const { app, BrowserWindow, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const http = require('http');
 
-const ROOT = path.join(__dirname, '..');
+function resolveRoot() {
+  // أثناء التطوير: مجلد المشروع. بعد التغليف: resources/maktaba
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'maktaba');
+  }
+  return path.join(__dirname, '..');
+}
+
+const ROOT = resolveRoot();
 const API_DIR = path.join(ROOT, 'apps', 'api');
 const WEB_DIST = path.join(ROOT, 'apps', 'web', 'dist');
 const DATA_DIR = path.join(ROOT, 'data');
+const BACKUPS_DIR = path.join(ROOT, 'backups');
+const DB_FILE = path.join(DATA_DIR, 'maktaba.db');
 const PORT = Number(process.env.PORT || 3000);
 const APP_URL = `http://127.0.0.1:${PORT}`;
 
@@ -19,11 +29,13 @@ let mainWindow = null;
 let apiProcess = null;
 let shuttingDown = false;
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+function ensureDirs() {
+  for (const d of [DATA_DIR, BACKUPS_DIR]) {
+    if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+  }
 }
 
-function waitForApi(maxMs = 60000) {
+function waitForApi(maxMs = 90000) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const tryOnce = () => {
@@ -40,7 +52,7 @@ function waitForApi(maxMs = 60000) {
     };
     const retry = () => {
       if (Date.now() - start > maxMs) {
-        reject(new Error('انتهت مهلة انتظار الخادم المحلي'));
+        reject(new Error('انتهت مهلة انتظار الخادم المحلي. تأكد من اكتمال البناء (build-desktop.bat).'));
         return;
       }
       setTimeout(tryOnce, 400);
@@ -55,7 +67,7 @@ function startApi() {
     PORT: String(PORT),
     NODE_ENV: 'production',
     WEB_DIST: WEB_DIST,
-    DATABASE_URL: process.env.DATABASE_URL || `file:${path.join(DATA_DIR, 'maktaba.db')}`,
+    DATABASE_URL: process.env.DATABASE_URL || `file:${DB_FILE}`,
     JWT_SECRET: process.env.JWT_SECRET || 'portable-desktop-change-me-in-production',
     CORS_ORIGINS: APP_URL,
   };
@@ -70,7 +82,6 @@ function startApi() {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } else {
-    // تطوير: nest عبر npx
     const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     apiProcess = spawn(npmCmd, ['run', 'start:dev'], {
       cwd: API_DIR,
@@ -90,6 +101,146 @@ function startApi() {
   });
 }
 
+function stamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
+async function doBackup() {
+  ensureDirs();
+  if (!fs.existsSync(DB_FILE)) {
+    dialog.showErrorBox('نسخ احتياطي', 'لا يوجد ملف قاعدة بيانات بعد. شغّل seed أو استخدم البرنامج أولًا.');
+    return;
+  }
+  const defaultName = `maktaba-backup-${stamp()}.db`;
+  const { filePath, canceled } = await dialog.showSaveDialog(mainWindow, {
+    title: 'حفظ نسخة احتياطية',
+    defaultPath: path.join(BACKUPS_DIR, defaultName),
+    filters: [{ name: 'SQLite Database', extensions: ['db'] }],
+  });
+  if (canceled || !filePath) return;
+  try {
+    fs.copyFileSync(DB_FILE, filePath);
+    // نسخة إضافية داخل مجلد backups
+    try {
+      fs.copyFileSync(DB_FILE, path.join(BACKUPS_DIR, defaultName));
+    } catch (_) {}
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'تم النسخ',
+      message: 'تم حفظ النسخة الاحتياطية بنجاح.',
+      detail: filePath,
+    });
+  } catch (e) {
+    dialog.showErrorBox('فشل النسخ', String(e.message || e));
+  }
+}
+
+async function doRestore() {
+  const { filePaths, canceled } = await dialog.showOpenDialog(mainWindow, {
+    title: 'استعادة من نسخة احتياطية',
+    filters: [{ name: 'SQLite Database', extensions: ['db'] }],
+    properties: ['openFile'],
+  });
+  if (canceled || !filePaths?.[0]) return;
+  const src = filePaths[0];
+  const confirm = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['إلغاء', 'استعادة'],
+    defaultId: 0,
+    cancelId: 0,
+    title: 'تأكيد الاستعادة',
+    message: 'ستُستبدل قاعدة البيانات الحالية بالكامل.',
+    detail: 'يُفضّل إغلاق العمليات الجارية. بعد الاستعادة أعد تشغيل التطبيق.',
+  });
+  if (confirm.response !== 1) return;
+  try {
+    ensureDirs();
+    if (fs.existsSync(DB_FILE)) {
+      fs.copyFileSync(DB_FILE, path.join(BACKUPS_DIR, `before-restore-${stamp()}.db`));
+    }
+    fs.copyFileSync(src, DB_FILE);
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'تمت الاستعادة',
+      message: 'تمت استعادة القاعدة. أعد تشغيل التطبيق الآن.',
+    });
+  } catch (e) {
+    dialog.showErrorBox('فشل الاستعادة', String(e.message || e));
+  }
+}
+
+function openGuide() {
+  const candidates = [
+    path.join(ROOT, 'دليل-الاستخدام.md'),
+    path.join(ROOT, 'GUIDE-AR.txt'),
+    path.join(ROOT, 'README.md'),
+  ];
+  const f = candidates.find((c) => fs.existsSync(c));
+  if (f) shell.openPath(f);
+  else dialog.showMessageBox(mainWindow, { type: 'info', message: 'ضع ملف دليل-الاستخدام.md في مجلد البرنامج.' });
+}
+
+function buildMenu() {
+  const template = [
+    {
+      label: 'ملف',
+      submenu: [
+        { label: 'نسخ احتياطي للبيانات…', click: () => void doBackup() },
+        { label: 'استعادة من نسخة…', click: () => void doRestore() },
+        { type: 'separator' },
+        {
+          label: 'فتح مجلد البيانات',
+          click: () => {
+            ensureDirs();
+            shell.openPath(DATA_DIR);
+          },
+        },
+        {
+          label: 'فتح مجلد النسخ الاحتياطي',
+          click: () => {
+            ensureDirs();
+            shell.openPath(BACKUPS_DIR);
+          },
+        },
+        { type: 'separator' },
+        { role: 'quit', label: 'خروج' },
+      ],
+    },
+    {
+      label: 'عرض',
+      submenu: [
+        { role: 'reload', label: 'إعادة تحميل' },
+        { role: 'toggleDevTools', label: 'أدوات المطوّر' },
+        { type: 'separator' },
+        { role: 'resetZoom', label: 'حجم افتراضي' },
+        { role: 'zoomIn', label: 'تكبير' },
+        { role: 'zoomOut', label: 'تصغير' },
+        { type: 'separator' },
+        { role: 'togglefullscreen', label: 'ملء الشاشة' },
+      ],
+    },
+    {
+      label: 'مساعدة',
+      submenu: [
+        { label: 'دليل الاستخدام', click: () => openGuide() },
+        {
+          label: 'عن البرنامج',
+          click: () =>
+            dialog.showMessageBox(mainWindow, {
+              type: 'info',
+              title: 'Maktaba',
+              message: 'نظام إدارة المكتبة والخدمات',
+              detail: 'إصدار Portable 1.0 — سطح مكتب + SQLite محلي',
+            }),
+        },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -98,7 +249,7 @@ function createWindow() {
     minHeight: 640,
     title: 'مكتبة — نظام إدارة المركز',
     backgroundColor: '#0f766e',
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -106,7 +257,6 @@ function createWindow() {
     },
   });
 
-  // امسح كاش الجلسة حتى تظهر تحديثات الواجهة فورًا
   mainWindow.webContents.session.clearCache().catch(() => {});
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow.webContents
@@ -129,8 +279,6 @@ function createWindow() {
 
   mainWindow.loadURL(APP_URL);
 
-
-  // السماح بنوافذ الطباعة (about:blank) — ومنع فتح روابط خارجية في المتصفح إلا http(s)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     const u = String(url || '');
     if (!u || u === 'about:blank' || u.startsWith('about:')) {
@@ -140,10 +288,7 @@ function createWindow() {
           width: 900,
           height: 700,
           autoHideMenuBar: true,
-          webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-          },
+          webPreferences: { nodeIntegration: false, contextIsolation: true },
         },
       };
     }
@@ -159,19 +304,19 @@ function createWindow() {
 }
 
 async function boot() {
-  ensureDataDir();
+  ensureDirs();
+  buildMenu();
 
   if (!fs.existsSync(WEB_DIST) || !fs.existsSync(path.join(WEB_DIST, 'index.html'))) {
     dialog.showErrorBox(
       'Maktaba',
-      'واجهة التطبيق غير مبنية.\nشغّل مرة واحدة: build-desktop.bat\nأو من الطرفية: npm run build:desktop',
+      'الواجهة غير مبنية.\nشغّل build-desktop.bat أو refresh-ui.bat ثم أعد المحاولة.',
     );
     app.quit();
     return;
   }
 
   startApi();
-
   try {
     await waitForApi();
   } catch (e) {
@@ -180,7 +325,6 @@ async function boot() {
     app.quit();
     return;
   }
-
   createWindow();
 }
 
@@ -199,10 +343,8 @@ function cleanup() {
 }
 
 app.whenReady().then(boot);
-
 app.on('window-all-closed', () => {
   cleanup();
   app.quit();
 });
-
 app.on('before-quit', cleanup);

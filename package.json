@@ -2,17 +2,93 @@
   "name": "maktaba-portable",
   "version": "1.0.0",
   "private": true,
-  "description": "Maktaba Portable — تطبيق سطح مكتب (Electron + SQLite)",
+  "description": "Maktaba — نظام إدارة المكتبة والخدمات (سطح مكتب)",
+  "author": "Maktaba",
   "main": "electron/main.js",
   "scripts": {
     "build:api": "npm run build --prefix apps/api",
-    "build:web": "npm run build --prefix apps/web -- -- --mode production",
-    "build:web:desktop": "cd apps/web && VITE_API_URL=http://127.0.0.1:3000/api npm run build",
+    "build:web:desktop": "cd apps/web && cross-env VITE_API_URL=http://127.0.0.1:3000/api npm run build",
     "build:desktop": "npm run build:api && npm run build:web:desktop",
     "start:desktop": "electron .",
-    "desktop": "npm run build:desktop && electron ."
+    "desktop": "npm run build:desktop && electron .",
+    "dist:win": "electron-builder --win portable nsis --x64"
+  },
+  "build": {
+    "appId": "com.maktaba.portable",
+    "productName": "Maktaba",
+    "copyright": "Copyright Maktaba",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "apps",
+        "to": "maktaba/apps",
+        "filter": [
+          "api/dist/**",
+          "api/prisma/**",
+          "api/package.json",
+          "api/node_modules/**",
+          "api/.env.example",
+          "web/dist/**"
+        ]
+      },
+      {
+        "from": "data",
+        "to": "maktaba/data",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "دليل-الاستخدام.md",
+        "to": "maktaba/دليل-الاستخدام.md"
+      },
+      {
+        "from": "backup.bat",
+        "to": "maktaba/backup.bat"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Maktaba-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Maktaba",
+      "installerLanguages": [
+        "ar",
+        "en_US"
+      ],
+      "language": "1025"
+    },
+    "portable": {
+      "artifactName": "Maktaba-Portable-${version}.exe"
+    }
   },
   "devDependencies": {
-    "electron": "^33.2.0"
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
   }
 }
