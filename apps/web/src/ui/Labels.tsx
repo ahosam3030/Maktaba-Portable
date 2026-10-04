@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
+import { loadInvoiceSettings } from '../data/invoiceSettings';
+import { noticeClass, noticeKind } from './notice';
 
 type Product = {
   id: string;
@@ -24,8 +26,16 @@ export function Labels() {
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<Record<string, number>>({});
   const [notice, setNotice] = useState('');
+  const inv = loadInvoiceSettings();
   const [cols, setCols] = useState(3);
   const [showPrice, setShowPrice] = useState(true);
+  const [showName, setShowName] = useState(true);
+  const [showBarcodeText, setShowBarcodeText] = useState(true);
+  const [showStoreName, setShowStoreName] = useState(true);
+  const [showPhone, setShowPhone] = useState(false);
+  const [storeName, setStoreName] = useState(inv.brandTitle || inv.watermarkText || '');
+  const [phone, setPhone] = useState(inv.phone || '');
+  const [extraLine, setExtraLine] = useState('');
   const [onlyWithBarcode, setOnlyWithBarcode] = useState(false);
 
   useEffect(() => {
@@ -103,15 +113,22 @@ export function Labels() {
       return;
     }
 
+    const store = storeName.trim();
+    const phoneLine = phone.trim();
+    const extra = extraLine.trim();
+
     const labelsHtml = items
       .flatMap((p) =>
         Array.from({ length: p.copies }, () => {
           const price = Number(p.salePrice) || 0;
           return `<div class="label">
-  <div class="name">${escapeHtml(p.name)}</div>
+  ${showStoreName && store ? `<div class="store">${escapeHtml(store)}</div>` : ''}
+  ${showName ? `<div class="name">${escapeHtml(p.name)}</div>` : ''}
   ${showPrice ? `<div class="price">${price.toFixed(2)} ج.م</div>` : ''}
   <svg class="bc" data-barcode="${escapeHtml(String(p.barcode))}"></svg>
-  <div class="code" dir="ltr">${escapeHtml(String(p.barcode))}</div>
+  ${showBarcodeText ? `<div class="code" dir="ltr">${escapeHtml(String(p.barcode))}</div>` : ''}
+  ${showPhone && phoneLine ? `<div class="phone" dir="ltr">${escapeHtml(phoneLine)}</div>` : ''}
+  ${extra ? `<div class="extra">${escapeHtml(extra)}</div>` : ''}
 </div>`;
         }),
       )
@@ -132,15 +149,23 @@ export function Labels() {
   .label {
     border: 1px dashed #94a3b8;
     border-radius: 4px;
-    padding: 3mm 2mm;
+    padding: 2.5mm 2mm;
     text-align: center;
     page-break-inside: avoid;
-    min-height: 28mm;
+    min-height: 30mm;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
   }
-  .name { font-size: 11px; font-weight: 700; margin-bottom: 2px; line-height: 1.3; }
-  .price { font-size: 12px; font-weight: 800; color: #0f766e; margin: 2px 0; }
-  .code { font-size: 10px; letter-spacing: 0.04em; margin-top: 2px; }
-  svg.bc { max-width: 100%; height: 36px; }
+  .store { font-size: 9px; font-weight: 800; color: #0f766e; line-height: 1.25; margin-bottom: 1px; }
+  .name { font-size: 11px; font-weight: 700; margin-bottom: 1px; line-height: 1.25; }
+  .price { font-size: 12px; font-weight: 800; color: #0c4a6e; margin: 1px 0; }
+  .code { font-size: 9px; letter-spacing: 0.04em; margin-top: 1px; color: #334155; }
+  .phone { font-size: 8px; color: #64748b; margin-top: 1px; }
+  .extra { font-size: 8px; color: #475569; margin-top: 1px; line-height: 1.2; }
+  svg.bc { max-width: 100%; height: 34px; }
 </style></head><body>
 <div class="sheet">${labelsHtml}</div>
 <script>
@@ -179,9 +204,9 @@ export function Labels() {
       </div>
 
       {notice && (
-        <p className="feedback" role="status">
+        <div className={noticeClass(notice)} role={noticeKind(notice) === 'error' ? 'alert' : 'status'}>
           {notice}
-        </p>
+        </div>
       )}
 
       <div className="labels-toolbar">
@@ -203,8 +228,24 @@ export function Labels() {
           </select>
         </label>
         <label className="labels-check">
+          <input type="checkbox" checked={showStoreName} onChange={(e) => setShowStoreName(e.target.checked)} />
+          <span>اسم المكتبة</span>
+        </label>
+        <label className="labels-check">
+          <input type="checkbox" checked={showName} onChange={(e) => setShowName(e.target.checked)} />
+          <span>اسم الصنف</span>
+        </label>
+        <label className="labels-check">
           <input type="checkbox" checked={showPrice} onChange={(e) => setShowPrice(e.target.checked)} />
-          <span>إظهار السعر</span>
+          <span>السعر</span>
+        </label>
+        <label className="labels-check">
+          <input type="checkbox" checked={showBarcodeText} onChange={(e) => setShowBarcodeText(e.target.checked)} />
+          <span>رقم الباركود</span>
+        </label>
+        <label className="labels-check">
+          <input type="checkbox" checked={showPhone} onChange={(e) => setShowPhone(e.target.checked)} />
+          <span>الهاتف</span>
         </label>
         <label className="labels-check">
           <input
@@ -227,6 +268,42 @@ export function Labels() {
             </button>
           )}
         </div>
+      </div>
+
+      <div className="purchase-panel" style={{ padding: '14px 16px', marginBottom: 12 }}>
+        <h3 style={{ margin: '0 0 10px', fontSize: 14 }}>نصوص الملصق</h3>
+        <div className="purchase-form-grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <label>
+            <span>اسم المكتبة / المركز</span>
+            <input
+              value={storeName}
+              onChange={(e) => setStoreName(e.target.value)}
+              placeholder="مثال: مركز المهندس للخدمات العلمية"
+              dir="auto"
+            />
+          </label>
+          <label>
+            <span>رقم الهاتف</span>
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="01xxxxxxxxx"
+              dir="ltr"
+            />
+          </label>
+          <label>
+            <span>سطر إضافي</span>
+            <input
+              value={extraLine}
+              onChange={(e) => setExtraLine(e.target.value)}
+              placeholder="مثال: جودة عالية · ضمان"
+              dir="auto"
+            />
+          </label>
+        </div>
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b' }}>
+          الاسم يُجلب تلقائيًا من إعدادات الطباعة. فعّل «اسم المكتبة» و«الهاتف» من الخيارات أعلاه ليظهرا على الملصق.
+        </p>
       </div>
 
       <div className="table-wrap">
