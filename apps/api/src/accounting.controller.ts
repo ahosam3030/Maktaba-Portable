@@ -34,9 +34,9 @@ export class AccountingController {
     if (search?.trim()) {
       const q = search.trim();
       where.OR = [
-        { category: { contains: q, mode: 'insensitive' } },
-        { reference: { contains: q, mode: 'insensitive' } },
-        { notes: { contains: q, mode: 'insensitive' } },
+        { category: { contains: q } },
+        { reference: { contains: q } },
+        { notes: { contains: q } },
       ];
     }
     return this.prisma.cashTransaction.findMany({ where, orderBy: [{ date: 'desc' }, { createdAt: 'desc' }], take: 1000 });

@@ -46,7 +46,6 @@ export class ServicesController {
             sortOrder: s.sortOrder,
             active: true,
           })),
-          skipDuplicates: true,
         });
       } catch {
         // طلب متزامن آخر زرع الخدمات — نتابع بالقراءة
