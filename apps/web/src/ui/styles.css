@@ -5281,3 +5281,34 @@ input::placeholder {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
+
+/* —— علامة التحديث المرئية —— */
+.ui-build-badge {
+  display: inline-flex !important;
+  margin-top: 6px !important;
+  padding: 3px 10px !important;
+  border-radius: 999px !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  background: #fef3c7 !important;
+  color: #92400e !important;
+  border: 1px solid #fcd34d !important;
+  letter-spacing: 0.02em;
+}
+
+/* فرض خلفية المحتوى لتأكيد التحميل */
+body {
+  background: #e8eef5 !important;
+}
+.app-shell {
+  background: #e8eef5 !important;
+}
+.topbar {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+}
+.sidebar {
+  background: linear-gradient(165deg, #042f2e 0%, #0f766e 45%, #14b8a6 100%) !important;
+}

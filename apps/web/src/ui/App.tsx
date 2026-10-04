@@ -562,6 +562,7 @@ export function App() {
                                   : 'لوحة التحكم'}
           </h1>
           <p className="topbar-sub">{isLoggedIn ? (sessionOrg?.name || 'نظام إدارة المكتبة') : 'أدخل بياناتك للمتابعة'}</p>
+            <span className="ui-build-badge" title="إصدار الواجهة">واجهة · أكتوبر 2026</span>
           </div>
           </div>
           <div className="status-pills">
