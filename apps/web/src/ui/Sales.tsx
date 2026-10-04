@@ -35,6 +35,28 @@ type Sale = {
 const money = (n: number) => `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ج.م`;
 const qty = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 3 });
 
+const chipBase: import('react').CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: '3.4rem',
+  padding: '6px 12px',
+  borderRadius: 10,
+  fontSize: 13,
+  fontWeight: 800,
+  border: '1.5px solid',
+  fontVariantNumeric: 'tabular-nums',
+};
+const CHIP_COST: import('react').CSSProperties = { ...chipBase, background: '#f1f5f9', borderColor: '#94a3b8', color: '#334155' };
+const CHIP_PROFIT: import('react').CSSProperties = { ...chipBase, background: '#d1fae5', borderColor: '#34d399', color: '#065f46' };
+const CHIP_LOSS: import('react').CSSProperties = { ...chipBase, background: '#fee2e2', borderColor: '#f87171', color: '#991b1b' };
+const CHIP_STOCK: import('react').CSSProperties = { ...chipBase, background: '#d1fae5', borderColor: '#34d399', color: '#065f46' };
+const CHIP_STOCK_LOW: import('react').CSSProperties = { ...chipBase, background: '#fef3c7', borderColor: '#fbbf24', color: '#92400e' };
+const CHIP_STOCK_ZERO: import('react').CSSProperties = { ...chipBase, background: '#fee2e2', borderColor: '#f87171', color: '#991b1b' };
+const CHIP_TOTAL: import('react').CSSProperties = { ...chipBase, background: '#ccfbf1', borderColor: '#2dd4bf', color: '#0f766e' };
+const CHIP_MUTED: import('react').CSSProperties = { ...chipBase, background: '#f8fafc', borderColor: '#e2e8f0', color: '#94a3b8' };
+
+
 function escapeHtml(s: string) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c));
 }
@@ -1133,31 +1155,31 @@ function printDraft() {
                     </td>
                     <td className="num-cell">
                       {cost === null || !Number.isFinite(cost) ? (
-                        <span className="num-chip num-chip--muted">—</span>
+                        <span className="num-chip num-chip--muted" style={CHIP_MUTED}>—</span>
                       ) : (
-                        <span className="num-chip num-chip--cost">{cost.toLocaleString('en-US', { maximumFractionDigits: 3 })}</span>
+                        <span className="num-chip num-chip--cost" style={CHIP_COST}>{cost.toLocaleString('en-US', { maximumFractionDigits: 3 })}</span>
                       )}
                     </td>
                     <td className="num-cell">
                       {profit === null ? (
-                        <span className="num-chip num-chip--muted">—</span>
+                        <span className="num-chip num-chip--muted" style={CHIP_MUTED}>—</span>
                       ) : (
-                        <span className={`num-chip ${profit >= 0 ? 'num-chip--profit' : 'num-chip--loss'}`}>
+                        <span className={`num-chip ${profit >= 0 ? 'num-chip--profit' : 'num-chip--loss'}`} style={profit >= 0 ? CHIP_PROFIT : CHIP_LOSS}>
                           {profit.toLocaleString('en-US', { maximumFractionDigits: 3 })}
                         </span>
                       )}
                     </td>
                     <td className="num-cell" title="الكمية المتاحة في المخزون">
                       {stock === null ? (
-                        <span className="num-chip num-chip--muted">—</span>
+                        <span className="num-chip num-chip--muted" style={CHIP_MUTED}>—</span>
                       ) : (
-                        <span className={`num-chip ${stock <= 0 ? 'num-chip--stock-zero' : stock <= 5 ? 'num-chip--stock-low' : 'num-chip--stock'}`}>
+                        <span className={`num-chip ${stock <= 0 ? 'num-chip--stock-zero' : stock <= 5 ? 'num-chip--stock-low' : 'num-chip--stock'}`} style={stock <= 0 ? CHIP_STOCK_ZERO : stock <= 5 ? CHIP_STOCK_LOW : CHIP_STOCK}>
                           {qty(stock)}
                         </span>
                       )}
                     </td>
                     <td className="num-cell">
-                      <span className="num-chip num-chip--total">
+                      <span className="num-chip num-chip--total" style={CHIP_TOTAL}>
                         {lineTotal ? lineTotal.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0'}
                       </span>
                     </td>
