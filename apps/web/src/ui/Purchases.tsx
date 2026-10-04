@@ -837,8 +837,14 @@ export function Purchases() {
                         onChange={(e) => updateDraft(l.key, { salePrice: e.target.value })}
                       />
                     </td>
-                    <td className={profit === null ? 'num-muted' : profit >= 0 ? 'num-profit' : 'num-loss'}>
-                      {profit === null ? '—' : profit.toLocaleString('en-US', { maximumFractionDigits: 3 })}
+                    <td className="num-cell">
+                      {profit === null ? (
+                        <span className="num-chip num-chip--muted">—</span>
+                      ) : (
+                        <span className={`num-chip ${profit >= 0 ? 'num-chip--profit' : 'num-chip--loss'}`}>
+                          {profit.toLocaleString('en-US', { maximumFractionDigits: 3 })}
+                        </span>
+                      )}
                     </td>
                     <td title="الكمية المتبقية في المخزون قبل هذه الفاتورة">
                       {l.stock === null || l.stock === undefined ? '—' : l.stock.toLocaleString('en-US')}

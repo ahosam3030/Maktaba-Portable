@@ -1131,19 +1131,33 @@ function printDraft() {
                         onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
                       />
                     </td>
-                    <td className={cost === null || !Number.isFinite(cost) ? 'num-muted' : 'num-cost'}>{cost === null || !Number.isFinite(cost) ? '—' : cost.toLocaleString('en-US', { maximumFractionDigits: 3 })}</td>
-                    <td className={profit === null ? 'num-muted' : profit >= 0 ? 'num-profit' : 'num-loss'}>
-                      {profit === null ? '—' : profit.toLocaleString('en-US', { maximumFractionDigits: 3 })}
+                    <td className="num-cell">
+                      {cost === null || !Number.isFinite(cost) ? (
+                        <span className="num-chip num-chip--muted">—</span>
+                      ) : (
+                        <span className="num-chip num-chip--cost">{cost.toLocaleString('en-US', { maximumFractionDigits: 3 })}</span>
+                      )}
                     </td>
-                    <td title="الكمية المتاحة في المخزون">
-                      {stock === null ? <span className="num-muted">—</span> : (
-                        <span className={stock <= 0 ? 'num-stock-zero' : stock <= 5 ? 'num-stock-low' : 'num-stock-ok'}>
+                    <td className="num-cell">
+                      {profit === null ? (
+                        <span className="num-chip num-chip--muted">—</span>
+                      ) : (
+                        <span className={`num-chip ${profit >= 0 ? 'num-chip--profit' : 'num-chip--loss'}`}>
+                          {profit.toLocaleString('en-US', { maximumFractionDigits: 3 })}
+                        </span>
+                      )}
+                    </td>
+                    <td className="num-cell" title="الكمية المتاحة في المخزون">
+                      {stock === null ? (
+                        <span className="num-chip num-chip--muted">—</span>
+                      ) : (
+                        <span className={`num-chip ${stock <= 0 ? 'num-chip--stock-zero' : stock <= 5 ? 'num-chip--stock-low' : 'num-chip--stock'}`}>
                           {qty(stock)}
                         </span>
                       )}
                     </td>
-                    <td>
-                      <span className="num-total">
+                    <td className="num-cell">
+                      <span className="num-chip num-chip--total">
                         {lineTotal ? lineTotal.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0'}
                       </span>
                     </td>
@@ -1184,9 +1198,9 @@ function printDraft() {
                 <span>الصافي</span>
                 <strong>{money(total)}</strong>
               </div>
-              <div className="sale-total-item">
+              <div className={`sale-total-item${remaining > 0 ? ' sale-total-item--warn' : ''}`}>
                 <span>المتبقي</span>
-                <strong className={remaining > 0 ? 'num-warn' : 'num-ok'}>{money(remaining)}</strong>
+                <strong>{money(remaining)}</strong>
               </div>
               <div className="sale-total-item sale-total-item--profit">
                 <span>مكسب تقديري</span>

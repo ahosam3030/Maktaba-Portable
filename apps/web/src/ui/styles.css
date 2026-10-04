@@ -4712,3 +4712,134 @@ input.input-num {
 .totals-box strong {
   font-variant-numeric: tabular-nums;
 }
+
+/* ========== مربعات أرقام احترافية ========== */
+.num-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.2rem;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.num-chip--price {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+.num-chip--cost {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+.num-chip--profit {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #047857;
+}
+.num-chip--loss {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+.num-chip--stock {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #047857;
+}
+.num-chip--stock-low {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #b45309;
+}
+.num-chip--stock-zero {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}
+.num-chip--total {
+  background: #ccfbf1;
+  border-color: #5eead4;
+  color: #0f766e;
+}
+.num-chip--muted {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+}
+
+/* خلايا الجدول — توسيط الأرقام */
+.purchase-table td.num-cell,
+.table-wrap td.num-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* ملخص أسفل الفاتورة — بطاقات أوضح */
+.sale-totals-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: stretch;
+}
+.sale-total-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  min-width: 110px;
+  text-align: center;
+}
+.sale-total-item span {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.sale-total-item strong {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.sale-total-item--profit {
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  border-color: transparent;
+  color: #fff;
+}
+.sale-total-item--profit span {
+  color: rgba(255,255,255,0.85);
+}
+.sale-total-item--profit strong {
+  color: #fff;
+}
+.sale-total-item--warn {
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+.sale-total-item--warn strong {
+  color: #c2410c;
+}
+
+/* حقول السعر في الجدول */
+.purchase-table input.input-num--price,
+.table-wrap input.input-num--price {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+  color: #0369a1 !important;
+  font-weight: 700;
+  text-align: center;
+  border-radius: 8px;
+}
+.purchase-table input.input-num--qty,
+.table-wrap input.input-num--qty {
+  text-align: center;
+  font-weight: 700;
+  border-radius: 8px;
+}
