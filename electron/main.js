@@ -108,8 +108,26 @@ function createWindow() {
 
   mainWindow.loadURL(APP_URL);
 
+  // السماح بنوافذ الطباعة (about:blank) — ومنع فتح روابط خارجية في المتصفح إلا http(s)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    const u = String(url || '');
+    if (!u || u === 'about:blank' || u.startsWith('about:')) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 900,
+          height: 700,
+          autoHideMenuBar: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+          },
+        },
+      };
+    }
+    if (u.startsWith('http://') || u.startsWith('https://')) {
+      shell.openExternal(u);
+    }
     return { action: 'deny' };
   });
 
