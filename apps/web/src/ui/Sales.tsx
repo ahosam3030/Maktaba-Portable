@@ -1028,10 +1028,11 @@ function printDraft() {
                   : (matched ? Number(matched.stock) || 0 : null);
                 const cost = line.cost !== '' ? Number(line.cost) : (matched ? Number(matched.currentCost) || 0 : null);
                 const price = Number(line.unitPrice);
-                const profit = cost !== null && Number.isFinite(price) && line.unitPrice !== ''
-                  ? price - cost
-                  : null;
                 const qtyN = Number(line.quantity) || 0;
+                // مكسب السطر = (سعر البيع − التكلفة) × الكمية
+                const profit = cost !== null && Number.isFinite(price) && line.unitPrice !== ''
+                  ? (price - cost) * qtyN
+                  : null;
                 const overStock = line.productId && stock !== null && qtyN > stock;
                 return (
                   <tr key={line.key}>
