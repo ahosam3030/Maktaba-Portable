@@ -1,29 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
 
+// Portable Desktop: بدون PWA حتى لا يتخزّن الكاش القديم
 export default defineConfig({
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: [],
-      manifest: {
-        name: 'نظام إدارة المكتبات والطباعة',
-        short_name: 'إدارة المكتبة',
-        description: 'نظام إدارة المكتبات والمبيعات والطباعة',
-        lang: 'ar',
-        dir: 'rtl',
-        theme_color: '#0f766e',
-        background_color: '#f8fafc',
-        display: 'standalone',
-        start_url: '/',
-        icons: [],
-      },
-      workbox: {
-        navigateFallback: '/index.html',
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-      },
-    }),
-  ],
+  plugins: [react()],
+  server: {
+    port: 5173,
+  },
+  build: {
+    sourcemap: false,
+  },
 });

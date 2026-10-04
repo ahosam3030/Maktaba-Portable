@@ -106,7 +106,29 @@ function createWindow() {
     },
   });
 
+  // امسح كاش الجلسة حتى تظهر تحديثات الواجهة فورًا
+  mainWindow.webContents.session.clearCache().catch(() => {});
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow.webContents
+      .executeJavaScript(`
+        (async function(){
+          try {
+            if ('serviceWorker' in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              for (const r of regs) await r.unregister();
+            }
+            if (window.caches) {
+              const keys = await caches.keys();
+              for (const k of keys) await caches.delete(k);
+            }
+          } catch (e) {}
+        })();
+      `)
+      .catch(() => {});
+  });
+
   mainWindow.loadURL(APP_URL);
+
 
   // السماح بنوافذ الطباعة (about:blank) — ومنع فتح روابط خارجية في المتصفح إلا http(s)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
