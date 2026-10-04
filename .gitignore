@@ -13,3 +13,9 @@ data/*.db-journal
 data/*.db-wal
 data/*.db-shm
 apps/api/dev.db
+
+node_modules/
+apps/web/dist/
+apps/api/dist/
+data/*.db
+*.db-journal

@@ -1,0 +1,18 @@
+{
+  "name": "maktaba-portable",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Maktaba Portable — تطبيق سطح مكتب (Electron + SQLite)",
+  "main": "electron/main.js",
+  "scripts": {
+    "build:api": "npm run build --prefix apps/api",
+    "build:web": "npm run build --prefix apps/web -- -- --mode production",
+    "build:web:desktop": "cd apps/web && VITE_API_URL=http://127.0.0.1:3000/api npm run build",
+    "build:desktop": "npm run build:api && npm run build:web:desktop",
+    "start:desktop": "electron .",
+    "desktop": "npm run build:desktop && electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.2.0"
+  }
+}

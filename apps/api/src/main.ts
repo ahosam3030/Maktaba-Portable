@@ -3,6 +3,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { join } from 'path';
+import { existsSync } from 'fs';
 import { uploadsRoot } from './uploads';
 
 async function bootstrap() {
@@ -13,7 +15,19 @@ async function bootstrap() {
   }
   // صور المنتجات: http://host:3000/uploads/...
   app.useStaticAssets(uploadsRoot(), { prefix: '/uploads/' });
-  const origins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
+
+  // واجهة مبنية للتطبيق المكتبي (Electron) أو التشغيل الموحّد
+  const webDist = process.env.WEB_DIST;
+  if (webDist) {
+    if (existsSync(webDist)) {
+      app.useStaticAssets(webDist);
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn('WEB_DIST not found:', webDist);
+    }
+  }
+
+  const origins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://127.0.0.1:3000,http://localhost:3000')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
@@ -39,6 +53,17 @@ async function bootstrap() {
     }
     next();
   });
+
+  // SPA fallback: أي مسار غير /api و /uploads → index.html
+  if (webDist && existsSync(webDist)) {
+    app.use((req: any, res: any, next: () => void) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      const u = String(req.originalUrl || req.url || '');
+      if (u.startsWith('/api') || u.startsWith('/uploads')) return next();
+      if (u.includes('.')) return next();
+      res.sendFile(join(webDist, 'index.html'), (err: unknown) => (err ? next() : undefined));
+    });
+  }
 
   const port = Number(process.env.PORT || 3000);
   await app.listen(port);
