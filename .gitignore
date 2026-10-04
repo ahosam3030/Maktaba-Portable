@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.vite/
+coverage/
+*.log
+.DS_Store
+backups/
+uploads/
+apps/api/uploads/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+apps/api/dev.db

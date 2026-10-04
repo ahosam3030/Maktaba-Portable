@@ -1,0 +1,449 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id               String             @id @default(cuid())
+  name             String
+  slug             String             @unique
+  phone            String?
+  /// JSON: إعدادات الطباعة والإيصالات للمكتبة
+  printSettings    String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  branches         Branch[]
+  users            User[]
+  suppliers        Supplier[]
+  products         Product[]
+  purchaseInvoices PurchaseInvoice[]
+  supplierPayments SupplierPayment[]
+  purchaseReturns  PurchaseReturn[]
+  stockMovements   StockMovement[]
+  sales            Sale[]
+  saleReturns      SaleReturn[]
+  cashTransactions CashTransaction[]
+  services         Service[]
+  serviceReceipts  ServiceReceipt[]
+}
+
+model Branch {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model User {
+  id               String            @id @default(cuid())
+  organizationId   String
+  fullName         String
+  email            String            @unique
+  passwordHash     String?
+  /// OWNER | ADMIN | USER
+  role             String            @default("OWNER")
+  /// JSON array of permission keys, e.g. ["sales","inventory"]
+  permissions      String            @default("[]")
+  active           Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cashTransactions CashTransaction[]
+  serviceReceipts  ServiceReceipt[]
+
+  @@index([organizationId])
+}
+
+model Supplier {
+  id               String            @id @default(cuid())
+  organizationId   String
+  name             String
+  phone            String?
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  purchaseInvoices PurchaseInvoice[]
+  supplierPayments SupplierPayment[]
+  purchaseReturns  PurchaseReturn[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, name])
+}
+
+model Product {
+  id             String                @id @default(cuid())
+  organizationId String
+  name           String
+  barcode        String?
+  unit           String                @default("PIECE")
+  piecesPerPack  Int                   @default(1)
+  currentCost    Decimal               @default(0)
+  salePrice      Decimal               @default(0)
+  minStock       Decimal               @default(0)
+  imageUrl       String?
+  notes          String?
+  active         Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  purchaseItems  PurchaseInvoiceItem[]
+  returnItems    PurchaseReturnItem[]
+  stockMovements StockMovement[]
+  saleItems      SaleItem[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, name])
+  @@unique([organizationId, barcode])
+  @@index([organizationId, barcode])
+  @@index([organizationId, active])
+}
+
+model PurchaseInvoice {
+  id             String                @id @default(cuid())
+  organizationId String
+  supplierId     String
+  invoiceNumber  String
+  invoiceDate    DateTime              @default(now())
+  discount       Decimal               @default(0)
+  subtotal       Decimal               @default(0)
+  total          Decimal               @default(0)
+  paidAmount     Decimal               @default(0)
+  notes          String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier       Supplier              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items          PurchaseInvoiceItem[]
+  payments       SupplierPayment[]
+  returns        PurchaseReturn[]
+
+  @@unique([organizationId, supplierId, invoiceNumber])
+  @@index([organizationId, invoiceDate])
+  @@index([organizationId, supplierId])
+}
+
+model PurchaseInvoiceItem {
+  id               String              @id @default(cuid())
+  invoiceId        String
+  productId        String
+  productName      String
+  unit             String
+  quantity         Decimal
+  unitCost         Decimal
+  piecesPerPack    Int                 @default(1)
+  lineTotal        Decimal
+  returnedQuantity Decimal             @default(0)
+  invoice          PurchaseInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product          Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  returnItems      PurchaseReturnItem[]
+
+  @@index([invoiceId])
+  @@index([productId])
+}
+
+model SupplierPayment {
+  id             String           @id @default(cuid())
+  organizationId String
+  supplierId     String
+  invoiceId      String?
+  amount         Decimal
+  paymentDate    DateTime         @default(now())
+  method         String           @default("CASH")
+  notes          String?
+  createdAt      DateTime         @default(now())
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier       Supplier         @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  invoice        PurchaseInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, supplierId, paymentDate])
+  @@index([invoiceId])
+}
+
+model PurchaseReturn {
+  id             String               @id @default(cuid())
+  organizationId String
+  supplierId     String
+  invoiceId      String
+  returnNumber   String?
+  returnDate     DateTime             @default(now())
+  total          Decimal
+  reason         String?
+  createdAt      DateTime             @default(now())
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier       Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  invoice        PurchaseInvoice      @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  items          PurchaseReturnItem[]
+
+  @@index([organizationId, returnDate])
+  @@index([invoiceId])
+}
+
+model PurchaseReturnItem {
+  id             String              @id @default(cuid())
+  returnId       String
+  invoiceItemId  String
+  productId      String
+  quantity       Decimal
+  unitCost       Decimal
+  lineTotal      Decimal
+  purchaseReturn PurchaseReturn      @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  invoiceItem    PurchaseInvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Restrict)
+  product        Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([returnId])
+  @@index([invoiceItemId])
+}
+
+model StockMovement {
+  id             String       @id @default(cuid())
+  organizationId String
+  productId      String
+  quantity       Decimal
+  type           String       @default("ADJUSTMENT")
+  reason         String
+  notes          String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, createdAt])
+  @@index([productId, createdAt])
+  @@index([organizationId, type])
+}
+
+model Sale {
+  id             String       @id @default(cuid())
+  organizationId String
+  invoiceNumber  String
+  saleDate       DateTime     @default(now())
+  customerName   String?
+  subtotal       Decimal
+  discount       Decimal      @default(0)
+  total          Decimal
+  paidAmount     Decimal      @default(0)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items          SaleItem[]
+  returns        SaleReturn[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId, saleDate])
+}
+
+model SaleItem {
+  id               String  @id @default(cuid())
+  saleId           String
+  productId        String?  // null = بند خدمة/وصف حر بدون مخزون
+  productName      String
+  unit             String?  // قطعة، خدمة، ...
+  quantity         Decimal
+  returnedQuantity Decimal @default(0)
+  unitPrice        Decimal
+  unitCost         Decimal @default(0)
+  lineTotal        Decimal
+  sale             Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product          Product? @relation(fields: [productId], references: [id], onDelete: Restrict)
+  returnItems      SaleReturnItem[]
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model CashTransaction {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  kind           String
+  date           DateTime     @default(now())
+  category       String
+  amount         Decimal
+  method         String       @default("CASH")
+  reference      String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, date])
+  @@index([organizationId, kind, date])
+  @@index([organizationId, category])
+}
+
+
+model Service {
+  id             String           @id @default(cuid())
+  organizationId String
+  name           String
+  unitPrice      Decimal          @default(0)
+  chargeUnit     String           @default("job")
+  active         Boolean          @default(true)
+  sortOrder      Int              @default(0)
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  receipts       ServiceReceipt[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, active])
+}
+
+model ServiceReceipt {
+  id                String       @id @default(cuid())
+  organizationId    String
+  userId            String
+  serviceId         String?
+  receiptNo         String
+  receiptDate       DateTime     @default(now())
+  customerName      String?
+  serviceName       String
+  description       String?
+  paperSize         String?
+  colorMode         String?
+  pages             Int          @default(1)
+  copies            Int          @default(1)
+  sides             String?
+  unitPrice         Decimal      @default(0)
+  extraFees         Decimal      @default(0)
+  discount          Decimal      @default(0)
+  total             Decimal      @default(0)
+  paidAmount        Decimal      @default(0)
+  notes             String?
+  cashTransactionId String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user              User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  service           Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  items             ServiceReceiptItem[]
+
+  @@unique([organizationId, receiptNo])
+  @@index([organizationId, receiptDate])
+  @@index([organizationId, serviceId])
+}
+
+
+model ServiceReceiptItem {
+  id          String         @id @default(cuid())
+  receiptId   String
+  serviceId   String?
+  serviceName String
+  description String?
+  quantity    Decimal        @default(1)
+  unitPrice   Decimal        @default(0)
+  lineTotal   Decimal        @default(0)
+  receipt     ServiceReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  userId         String?
+  action         String
+  entity         String?
+  entityId       String?
+  ip             String?
+  userAgent      String?
+  meta           String?
+  success        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([action, createdAt])
+  @@index([userId, createdAt])
+}
+
+
+model SaleReturn {
+  id             String           @id @default(cuid())
+  organizationId String
+  saleId         String
+  returnNumber   String?
+  returnDate     DateTime         @default(now())
+  total          Decimal
+  refundAmount   Decimal          @default(0)
+  reason         String?
+  createdAt      DateTime         @default(now())
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sale           Sale             @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  items          SaleReturnItem[]
+
+  @@index([organizationId, returnDate])
+  @@index([saleId])
+}
+
+model SaleReturnItem {
+  id          String     @id @default(cuid())
+  returnId    String
+  saleItemId  String
+  productId   String?
+  productName String
+  quantity    Decimal
+  unitPrice   Decimal
+  unitCost    Decimal    @default(0)
+  lineTotal   Decimal
+  saleReturn  SaleReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  saleItem    SaleItem   @relation(fields: [saleItemId], references: [id], onDelete: Restrict)
+
+  @@index([returnId])
+  @@index([saleItemId])
+}
+
+
+model IdempotencyRecord {
+  id             String   @id // مفتاح العميل X-Idempotency-Key
+  organizationId String
+  method         String
+  path           String
+  statusCode     Int
+  responseBody   String
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+
+model DayClose {
+  id             String   @id @default(cuid())
+  organizationId String
+  businessDate   DateTime
+  openingFloat   Decimal  @default(0)
+  cashSales      Decimal  @default(0)
+  cashIn         Decimal  @default(0)
+  cashOut        Decimal  @default(0)
+  expectedCash   Decimal  @default(0)
+  countedCash    Decimal  @default(0)
+  variance       Decimal  @default(0)
+  notes          String?
+  closedByUserId String?
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, businessDate])
+  @@index([organizationId, businessDate])
+}
+
+model DrawerEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  kind           String
+  amount         Decimal  @default(0)
+  reason         String?
+  userId         String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, kind])
+}
