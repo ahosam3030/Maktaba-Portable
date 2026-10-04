@@ -4,6 +4,7 @@ import { ScanModeOverlay } from './ScanModeOverlay';
 import { loadSaleUnits } from '../data/units';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
 import { IconReceipt, IconWallet, IconRefresh, IconChart, IconCart } from './Icons';
+import { noticeClass, noticeKind } from './notice';
 
 type Product = { id: string; name: string; barcode?: string | null; salePrice: number; currentCost: number; stock: number };
 type CartLine = {
@@ -74,6 +75,13 @@ export function Sales() {
   const [saleFilterTo, setSaleFilterTo] = useState('');
   const [saleFilterPay, setSaleFilterPay] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
   const [notice, setNotice] = useState('');
+  useEffect(() => {
+    if (!notice) return;
+    if (noticeKind(notice) !== 'success') return;
+    const t = window.setTimeout(() => setNotice(''), 4500);
+    return () => window.clearTimeout(t);
+  }, [notice]);
+
   const [pageTab, setPageTab] = useState<'invoice' | 'history'>('invoice');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -970,8 +978,8 @@ function printDraft() {
         </button>
       </div>
 
-      {notice && <div className="purchase-notice" role="status">{notice}</div>}
-      {error && <div className="purchase-notice" role="alert">{error} — تأكد من تسجيل الدخول وتشغيل الخادم.</div>}
+      {notice && <div className={noticeClass(notice)} role={noticeKind(notice) === "error" ? "alert" : "status"}>{notice}</div>}
+      {error && <div className="app-notice app-notice--error" role="alert">{error} — تأكد من تسجيل الدخول وتشغيل الخادم.</div>}
 
       {pageTab === 'invoice' && (
       <section className="purchase-panel pur-invoice">
@@ -1108,7 +1116,7 @@ function printDraft() {
                         data-field="quantity"
                         value={line.quantity}
                         onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
-                        style={{ borderColor: overStock ? '#d6455d' : undefined }}
+                        className={overStock ? 'input-num input-num--danger' : 'input-num input-num--qty'}
                         title={overStock ? 'الكمية أكبر من المتاح' : undefined}
                       />
                     </td>
@@ -1119,22 +1127,23 @@ function printDraft() {
                         step="0.01"
                         value={line.unitPrice}
                         placeholder="0"
+                        className="input-num input-num--price"
                         onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
                       />
                     </td>
-                    <td>{cost === null || !Number.isFinite(cost) ? '—' : cost.toLocaleString('en-US', { maximumFractionDigits: 3 })}</td>
-                    <td style={{ color: profit === null ? undefined : profit >= 0 ? '#0a7a4b' : '#b42318', fontWeight: 600 }}>
+                    <td className={cost === null || !Number.isFinite(cost) ? 'num-muted' : 'num-cost'}>{cost === null || !Number.isFinite(cost) ? '—' : cost.toLocaleString('en-US', { maximumFractionDigits: 3 })}</td>
+                    <td className={profit === null ? 'num-muted' : profit >= 0 ? 'num-profit' : 'num-loss'}>
                       {profit === null ? '—' : profit.toLocaleString('en-US', { maximumFractionDigits: 3 })}
                     </td>
                     <td title="الكمية المتاحة في المخزون">
-                      {stock === null ? '—' : (
-                        <span style={{ color: stock <= 0 ? '#b42318' : '#0a7a4b', fontWeight: 600 }}>
+                      {stock === null ? <span className="num-muted">—</span> : (
+                        <span className={stock <= 0 ? 'num-stock-zero' : stock <= 5 ? 'num-stock-low' : 'num-stock-ok'}>
                           {qty(stock)}
                         </span>
                       )}
                     </td>
                     <td>
-                      <span style={{ fontWeight: 700 }}>
+                      <span className="num-total">
                         {lineTotal ? lineTotal.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '0'}
                       </span>
                     </td>

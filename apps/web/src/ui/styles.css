@@ -4556,3 +4556,159 @@ aside.sidebar.sidebar--collapsed {
   margin-inline-start: auto;
   padding-bottom: 2px;
 }
+
+/* ========== أرقام ملوّنة احترافية ========== */
+.num-price,
+.num-sale {
+  color: #0c4a6e;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.num-cost,
+.num-original {
+  color: #6b7280;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.num-profit,
+.num-ok {
+  color: #047857 !important;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.num-loss,
+.num-bad {
+  color: #b91c1c !important;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.num-stock-ok {
+  color: #047857;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.num-stock-low {
+  color: #d97706;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.num-stock-zero {
+  color: #b91c1c;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.num-total {
+  color: #0f766e;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.num-muted {
+  color: #94a3b8;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* حقول أرقام في الجداول */
+.purchase-table input[type="number"],
+.table-wrap input[type="number"],
+input.input-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: center;
+  color: #0f172a;
+}
+.purchase-table input[type="number"]:focus,
+.table-wrap input[type="number"]:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+}
+.input-num--price { color: #0c4a6e !important; background: #f0f9ff !important; }
+.input-num--cost { color: #475569 !important; background: #f8fafc !important; }
+.input-num--qty { color: #0f172a !important; }
+.input-num--danger {
+  border-color: #f87171 !important;
+  background: #fef2f2 !important;
+  color: #b91c1c !important;
+}
+
+/* ========== تنبيهات نجاح / فشل ========== */
+.app-notice,
+.purchase-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px !important;
+  border-radius: 12px !important;
+  margin-bottom: 14px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1.55;
+  border: 1px solid transparent;
+  animation: notice-in 0.25s ease;
+}
+@keyframes notice-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.app-notice::before,
+.purchase-notice::before {
+  content: '';
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background-size: 14px;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+.app-notice--success,
+.purchase-notice--success {
+  background: #ecfdf5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
+}
+.app-notice--success::before,
+.purchase-notice--success::before {
+  background-color: #10b981;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E");
+}
+.app-notice--error,
+.purchase-notice--error,
+.purchase-notice[role="alert"] {
+  background: #fef2f2 !important;
+  border-color: #fca5a5 !important;
+  color: #991b1b !important;
+}
+.app-notice--error::before,
+.purchase-notice--error::before,
+.purchase-notice[role="alert"]::before {
+  background-color: #ef4444;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M6 6l12 12M18 6L6 18'/%3E%3C/svg%3E");
+}
+.app-notice--warn,
+.purchase-notice--warn {
+  background: #fffbeb !important;
+  border-color: #fcd34d !important;
+  color: #92400e !important;
+}
+.app-notice--warn::before,
+.purchase-notice--warn::before {
+  background-color: #f59e0b;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M12 8v5M12 16h.01'/%3E%3C/svg%3E");
+}
+.app-notice--info,
+.purchase-notice--info {
+  background: #f0fdfa !important;
+  border-color: #5eead4 !important;
+  color: #0f766e !important;
+}
+.app-notice--info::before,
+.purchase-notice--info::before {
+  background-color: #14b8a6;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M12 8v.01M11 12h1v6h1'/%3E%3C/svg%3E");
+}
+
+.sale-total-item strong,
+.totals-box strong {
+  font-variant-numeric: tabular-nums;
+}

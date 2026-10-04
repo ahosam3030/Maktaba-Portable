@@ -25,6 +25,7 @@ async function uploadProductImage(file: File): Promise<string> {
 }
 
 import { IconBoxes, IconRefresh, IconPackage, IconSearch, IconPlus, IconTrash } from './Icons';
+import { noticeClass, noticeKind } from './notice';
 
 type InventoryItem = {
   id: string;
@@ -338,7 +339,7 @@ export function Inventory({ embedded = false }: { embedded?: boolean } = {}) {
       </div>
       )}
 
-      {notice && <div className="purchase-notice" role="status">{notice}</div>}
+      {notice && <div className={noticeClass(notice)} role={noticeKind(notice) === "error" ? "alert" : "status"}>{notice}</div>}
       {error && <div className="purchase-notice" role="alert">{error}</div>}
       {loading && <div className="empty-state">جارٍ التحميل...</div>}
 

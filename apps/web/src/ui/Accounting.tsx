@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest, getToken } from '../data/api';
+import { noticeClass, noticeKind } from './notice';
 
 type CashRow = {
   id: string; kind: string; date: string; category: string; amount: number | string;
@@ -140,7 +141,7 @@ export function Accounting() {
         <button type="button" className={pageTab === 'ledger' ? 'active' : ''} onClick={() => setPageTab('ledger')}>السجل</button>
       </div>
 
-      {notice && <div className="purchase-notice" role="status">{notice}</div>}
+      {notice && <div className={noticeClass(notice)} role={noticeKind(notice) === "error" ? "alert" : "status"}>{notice}</div>}
       {error && <div className="purchase-notice" role="alert">{error}</div>}
 
       {pageTab === 'entry' && (

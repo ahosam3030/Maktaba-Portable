@@ -3,6 +3,7 @@ import { apiRequest, getToken } from '../data/api';
 import { ScanModeOverlay } from './ScanModeOverlay';
 import { ProductPriceReport } from './ProductPriceReport';
 import { IconCart, IconReceipt, IconWallet, IconTag, IconRefresh, IconPackage } from './Icons';
+import { noticeClass, noticeKind } from './notice';
 
 type Supplier = { id: string; name: string; phone?: string | null };
 type InvoiceItem = {
@@ -47,6 +48,13 @@ export function Purchases() {
   const [scanMode, setScanMode] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  useEffect(() => {
+    if (!notice) return;
+    if (noticeKind(notice) !== 'success') return;
+    const id = window.setTimeout(() => setNotice(''), 4500);
+    return () => window.clearTimeout(id);
+  }, [notice]);
+
   const [pageTab, setPageTab] = useState<'invoice' | 'payments' | 'returns' | 'report' | 'history'>('invoice');
 
   const PURCHASE_UNITS = [
@@ -662,8 +670,8 @@ export function Purchases() {
         </button>
       </div>
 
-      {notice && <div className="purchase-notice" role="status">{notice}</div>}
-      {error && <div className="purchase-notice" role="alert">{error}</div>}
+      {notice && <div className={noticeClass(notice)} role={noticeKind(notice) === "error" ? "alert" : "status"}>{notice}</div>}
+      {error && <div className="app-notice app-notice--error" role="alert">{error}</div>}
       {loading && <div className="empty-state">جارٍ التحميل...</div>}
 
       {pageTab === 'invoice' && (
@@ -829,7 +837,7 @@ export function Purchases() {
                         onChange={(e) => updateDraft(l.key, { salePrice: e.target.value })}
                       />
                     </td>
-                    <td style={{ color: profit === null ? undefined : profit >= 0 ? '#0a7a4b' : '#b42318', fontWeight: 600 }}>
+                    <td className={profit === null ? 'num-muted' : profit >= 0 ? 'num-profit' : 'num-loss'}>
                       {profit === null ? '—' : profit.toLocaleString('en-US', { maximumFractionDigits: 3 })}
                     </td>
                     <td title="الكمية المتبقية في المخزون قبل هذه الفاتورة">
