@@ -142,7 +142,7 @@ export function Accounting() {
       </div>
 
       {notice && <div className={noticeClass(notice)} role={noticeKind(notice) === "error" ? "alert" : "status"}>{notice}</div>}
-      {error && <div className="purchase-notice" role="alert">{error}</div>}
+      {error && <div className="app-notice app-notice--error" role="alert">{error}</div>}
 
       {pageTab === 'entry' && (
       <section className="purchase-panel">

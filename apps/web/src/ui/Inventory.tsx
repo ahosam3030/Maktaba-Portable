@@ -340,7 +340,7 @@ export function Inventory({ embedded = false }: { embedded?: boolean } = {}) {
       )}
 
       {notice && <div className={noticeClass(notice)} role={noticeKind(notice) === "error" ? "alert" : "status"}>{notice}</div>}
-      {error && <div className="purchase-notice" role="alert">{error}</div>}
+      {error && <div className="app-notice app-notice--error" role="alert">{error}</div>}
       {loading && <div className="empty-state">جارٍ التحميل...</div>}
 
       {pageTab === 'products' && !loading && (

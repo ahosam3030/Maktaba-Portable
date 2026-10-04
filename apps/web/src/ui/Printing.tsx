@@ -422,12 +422,12 @@ ${job.notes ? `<p>ملاحظات: ${escapeHtml(job.notes)}</p>` : ''}
       </div>
 
       {notice && (
-        <div className="purchase-notice" role="status">
+        <div className={noticeClass(notice)} role={noticeKind(notice) === "error" ? "alert" : "status"}>
           {notice}
         </div>
       )}
       {error && (
-        <div className="purchase-notice" role="alert">
+        <div className="app-notice app-notice--error" role="alert">
           {error}
         </div>
       )}
