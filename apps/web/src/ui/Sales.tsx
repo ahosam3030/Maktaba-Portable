@@ -18,7 +18,7 @@ type CartLine = {
   stock: number | null;
 };
 type Sale = {
-  id: string; invoiceNumber: string; saleDate: string; customerName?: string | null;
+  id: string; invoiceNumber: string; saleDate: string; createdAt?: string; customerName?: string | null;
   subtotal: number | string; discount: number | string; total: number | string; paidAmount: number | string;
   items: Array<{
     id: string;
@@ -1191,7 +1191,7 @@ function printDraft() {
                 حفظ وطباعة
               </button>
               <button className="secondary-btn" type="button" onClick={printDraft}>طباعة مسودة</button>
-              <button className="secondary-btn" type="button" onClick={resetForm}>فاتورة جديدة</button>
+              <button className="secondary-btn" type="button" onClick={() => resetForm()}>فاتورة جديدة</button>
             </div>
           </div>
         </div>
