@@ -29,6 +29,24 @@ let mainWindow = null;
 let apiProcess = null;
 let shuttingDown = false;
 
+// سلوك برنامج ويندوز عادي: نسخة واحدة + تجميع في شريط المهام
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+}
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.maktaba.portable');
+}
+
+
+
 function ensureDirs() {
   for (const d of [DATA_DIR, BACKUPS_DIR]) {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });

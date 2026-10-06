@@ -2,7 +2,7 @@
   "name": "maktaba-portable",
   "version": "1.0.0",
   "private": true,
-  "description": "Maktaba — نظام إدارة المكتبة والخدمات (سطح مكتب)",
+  "description": "Maktaba — تطبيق سطح مكتب لإدارة المكتبة والخدمات",
   "author": "Maktaba",
   "main": "electron/main.js",
   "scripts": {
@@ -11,7 +11,7 @@
     "build:desktop": "npm run build:api && npm run build:web:desktop",
     "start:desktop": "electron .",
     "desktop": "npm run build:desktop && electron .",
-    "dist:win": "electron-builder --win portable nsis --x64"
+    "dist:win": "electron-builder --win nsis --x64"
   },
   "build": {
     "appId": "com.maktaba.portable",
@@ -57,34 +57,29 @@
     "win": {
       "target": [
         {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
           "target": "nsis",
           "arch": [
             "x64"
           ]
         }
       ],
-      "artifactName": "Maktaba-${version}-${arch}.${ext}"
+      "artifactName": "Maktaba-Setup-${version}.${ext}",
+      "publisherName": "Maktaba"
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Maktaba",
+      "uninstallDisplayName": "Maktaba",
       "installerLanguages": [
         "ar",
         "en_US"
       ],
-      "language": "1025"
-    },
-    "portable": {
-      "artifactName": "Maktaba-Portable-${version}.exe"
+      "language": "1025",
+      "runAfterFinish": true
     }
   },
   "devDependencies": {
