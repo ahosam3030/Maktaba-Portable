@@ -1,6 +1,9 @@
 @echo off
-chcp 65001 >nul
+REM يفتح البرنامج بدون الإبقاء على نافذة CMD
 cd /d "%~dp0"
-title Maktaba
-echo تشغيل تطبيق Maktaba...
-call "%~dp0start-desktop.bat"
+if exist "%~dp0تشغيل التطبيق.vbs" (
+  wscript //nologo "%~dp0تشغيل التطبيق.vbs"
+) else (
+  call "%~dp0start-desktop.bat"
+)
+exit

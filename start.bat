@@ -1,11 +1,8 @@
 @echo off
-chcp 65001 >nul
 cd /d "%~dp0"
-title Maktaba
-echo ========================================
-echo   Maktaba — تطبيق سطح المكتب
-echo ========================================
-echo.
-echo يتم فتح نافذة البرنامج (ليس المتصفح)...
-echo.
-call "%~dp0start-desktop.bat"
+if exist "%~dp0تشغيل التطبيق.vbs" (
+  wscript //nologo "%~dp0تشغيل التطبيق.vbs"
+) else (
+  call "%~dp0start-desktop.bat"
+)
+exit
