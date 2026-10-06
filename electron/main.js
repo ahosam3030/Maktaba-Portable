@@ -79,17 +79,50 @@ function waitForApi(maxMs = 90000) {
   });
 }
 
+
+function killPort3000() {
+  if (process.platform !== 'win32') return;
+  try {
+    spawn(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-Command',
+        "Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }",
+      ],
+      { windowsHide: true, stdio: 'ignore' },
+    );
+  } catch (_) {}
+}
+
 function startApi() {
+  // Prisma على ويندوز يحتاج مسارًا بشرطات مائلة
+  const dbUrl =
+    process.env.DATABASE_URL ||
+    `file:${String(DB_FILE).replace(/\\/g, '/')}`;
+
   const env = {
     ...process.env,
     PORT: String(PORT),
     NODE_ENV: 'production',
     WEB_DIST: WEB_DIST,
-    DATABASE_URL: process.env.DATABASE_URL || `file:${DB_FILE}`,
+    DATABASE_URL: dbUrl,
     JWT_SECRET: process.env.JWT_SECRET || 'portable-desktop-change-me-in-production',
     CORS_ORIGINS: APP_URL,
   };
 
+  killPort3000();
+  // مزامنة .env حتى لا يتجاوز dotenv مسارًا خاطئًا
+  try {
+    const envPath = path.join(API_DIR, '.env');
+    const lines = [
+      `DATABASE_URL="${dbUrl}"`,
+      `PORT=${PORT}`,
+      `JWT_SECRET="${env.JWT_SECRET}"`,
+      'NODE_ENV=production',
+    ];
+    fs.writeFileSync(envPath, lines.join('\n') + '\n', 'utf8');
+  } catch (_) {}
   const distMain = path.join(API_DIR, 'dist', 'main.js');
   const useDist = fs.existsSync(distMain);
 
@@ -114,12 +147,37 @@ function startApi() {
     });
   }
 
-  apiProcess.stdout?.on('data', (d) => process.stdout.write(`[api] ${d}`));
-  apiProcess.stderr?.on('data', (d) => process.stderr.write(`[api] ${d}`));
+  let apiErrLog = '';
+  apiProcess.stdout?.on('data', (d) => {
+    const s = String(d);
+    process.stdout.write(`[api] ${s}`);
+    apiErrLog += s;
+  });
+  apiProcess.stderr?.on('data', (d) => {
+    const s = String(d);
+    process.stderr.write(`[api] ${s}`);
+    apiErrLog += s;
+    try {
+      fs.appendFileSync(path.join(DATA_DIR, 'api-error.log'), s);
+    } catch (_) {}
+  });
   apiProcess.on('exit', (code) => {
     apiProcess = null;
-    if (!shuttingDown && mainWindow) {
-      dialog.showErrorBox('Maktaba', `توقف الخادم المحلي (رمز ${code}). أعد تشغيل التطبيق.`);
+    if (!shuttingDown) {
+      try {
+        fs.appendFileSync(
+          path.join(DATA_DIR, 'api-error.log'),
+          `\n[exit code ${code}] ${new Date().toISOString()}\n`,
+        );
+      } catch (_) {}
+      const hint =
+        code === 1
+          ? '\n\nغالبًا المنفذ 3000 مشغول أو مشكلة في قاعدة البيانات.\nأقفل أي نسخة قديمة من Maktaba ثم أعد التشغيل.\nالتفاصيل: data/api-error.log'
+          : '';
+      dialog.showErrorBox(
+        'Maktaba',
+        `توقف الخادم المحلي (رمز ${code}). أعد تشغيل التطبيق.${hint}`,
+      );
     }
   });
 }
