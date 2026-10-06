@@ -94,10 +94,14 @@ function startApi() {
   const useDist = fs.existsSync(distMain);
 
   if (useDist) {
-    apiProcess = spawn(process.execPath, [distMain], {
+    // يجب تشغيل الـ API بـ Node وليس بـ electron.exe
+    const nodeCmd = process.platform === 'win32' ? 'node.exe' : 'node';
+    apiProcess = spawn(nodeCmd, [distMain], {
       cwd: API_DIR,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true,
+      windowsHide: true,
     });
   } else {
     const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
@@ -106,6 +110,7 @@ function startApi() {
       env: { ...env, NODE_ENV: 'development' },
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
+      windowsHide: true,
     });
   }
 
