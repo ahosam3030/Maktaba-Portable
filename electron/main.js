@@ -83,14 +83,11 @@ function waitForApi(maxMs = 90000) {
 function killPort3000() {
   if (process.platform !== 'win32') return;
   try {
-    spawn(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-Command',
-        "Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }",
-      ],
-      { windowsHide: true, stdio: 'ignore' },
+    const { execSync } = require('child_process');
+    // مزامنة: انتظر انتهاء القتل قبل تشغيل API جديد (تجنب قتل العملية الجديدة)
+    execSync(
+      'powershell.exe -NoProfile -Command "Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"',
+      { windowsHide: true, stdio: 'ignore', timeout: 8000 },
     );
   } catch (_) {}
 }
@@ -112,6 +109,8 @@ function startApi() {
   };
 
   killPort3000();
+  // انتظار قصير بعد تحرير المنفذ
+  try { require('child_process').execSync('timeout /t 1 /nobreak >nul', { stdio: 'ignore', windowsHide: true }); } catch (_) {}
   // مزامنة .env حتى لا يتجاوز dotenv مسارًا خاطئًا
   try {
     const envPath = path.join(API_DIR, '.env');
