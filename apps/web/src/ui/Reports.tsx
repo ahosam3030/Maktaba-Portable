@@ -1,5 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
+
+async function downloadReportCsv(from: string, to: string) {
+  const q = new URLSearchParams();
+  if (from) q.set('from', from);
+  if (to) q.set('to', to);
+  const data = await apiRequest<{ filename: string; body: string }>(`/reports/export/csv?${q}`);
+  const blob = new Blob([data.body], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = data.filename || 'report.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function printReport() {
+  window.print();
+}
+
 import { ProductPriceReport } from './ProductPriceReport';
 import { IconChart, IconTag, IconPackage, IconRefresh } from './Icons';
 
@@ -223,6 +241,11 @@ export function Reports() {
 
   return (
     <div className="purchases-page reports-page">
+          <div className="toolbar-actions report-export-bar no-print" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            <button type="button" className="secondary-btn" onClick={() => void downloadReportCsv(from, to).catch((e) => setError(e instanceof Error ? e.message : 'تعذر التصدير'))}>تصدير Excel (CSV)</button>
+            <button type="button" className="secondary-btn" onClick={() => printReport()}>طباعة / PDF</button>
+          </div>
+
       <div className="purchase-title">
         <div>
           <span className="eyebrow">لوحة مالية</span>

@@ -38,6 +38,7 @@ type ConnectionState = 'checking' | 'online' | 'offline';
 type AuthMode = 'login' | 'register';
 
 export function App() {
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [connection, setConnection] = useState<ConnectionState>(navigator.onLine ? 'checking' : 'offline');
   const [pendingSync, setPendingSync] = useState(0);
   const [syncBusy, setSyncBusy] = useState(false);
@@ -103,7 +104,24 @@ export function App() {
     }
   }
 
+  
   useEffect(() => {
+    if (!getToken()) {
+      setLowStockCount(0);
+      return;
+    }
+    let cancelled = false;
+    const loadAlerts = () => {
+      apiRequest<{ count: number }>('/inventory/alerts/low-stock')
+        .then((d) => { if (!cancelled) setLowStockCount(d.count || 0); })
+        .catch(() => { if (!cancelled) setLowStockCount(0); });
+    };
+    loadAlerts();
+    const id = window.setInterval(loadAlerts, 120000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [connection]);
+
+useEffect(() => {
     void refreshLocal();
     void checkApi();
     const unsubSync = subscribeSyncQueue(setPendingSync);
@@ -602,6 +620,13 @@ export function App() {
             <span className="pill muted">{apiStatus}</span>
           </div>
         </div>
+
+        {lowStockCount > 0 && isLoggedIn ? (
+          <div className="purchase-notice" role="status" style={{ marginBottom: 12 }}>
+            تنبيه: {lowStockCount} صنف تحت الحد الأدنى للمخزون
+            <button type="button" className="secondary-btn" style={{ marginInlineStart: 8 }} onClick={() => setActiveSection('inventory')}>فتح المخزون</button>
+          </div>
+        ) : null}
 
         {activeSection === 'dashboard' && isLoggedIn && (
           <div className="home-dashboard">

@@ -447,3 +447,34 @@ model DrawerEvent {
   @@index([organizationId, createdAt])
   @@index([organizationId, kind])
 }
+
+model LicenseActivation {
+  id             String   @id @default(cuid())
+  organizationId String
+  serialKey      String
+  maxDevices     Int      @default(1)
+  deviceId       String
+  deviceName     String?
+  activatedAt    DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  active         Boolean  @default(true)
+
+  @@unique([organizationId, deviceId])
+  @@index([organizationId, active])
+  @@index([serialKey])
+}
+
+model SupportTicket {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  userName       String?
+  subject        String
+  body           String
+  status         String   @default("OPEN")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}

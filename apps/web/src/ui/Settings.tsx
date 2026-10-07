@@ -1,3 +1,4 @@
+import { SupportLicense } from './SupportLicense';
 import { useCallback, useEffect, useState } from 'react';
 import {
   fetchInvoiceSettings,
@@ -19,7 +20,7 @@ import { Inventory } from './Inventory';
 import { loadSaleUnits, saveSaleUnits, resetSaleUnits, DEFAULT_SALE_UNITS } from '../data/units';
 import { IconUsers, IconPrint, IconSettings, IconPackage, IconLock, IconRefresh, IconBoxes } from './Icons';
 
-type Tab = 'invoice' | 'users' | 'products' | 'libraries' | 'danger';
+type Tab = 'invoice' | 'users' | 'products' | 'libraries' | 'support' | 'danger';
 
 export function Settings() {
   const sessionUser = getStoredUser();
@@ -165,6 +166,7 @@ export function Settings() {
     { id: 'products', label: 'المنتجات', desc: 'أصناف وباركود وأسعار', show: canProducts, Icon: IconBoxes },
     { id: 'invoice', label: 'الطباعة', desc: 'بيانات الإيصالات', show: true, Icon: IconPrint },
     { id: 'libraries', label: 'هذا الجهاز', desc: 'المكتبة والذاكرة', show: true, Icon: IconPackage },
+    { id: 'support', label: 'الدعم والترخيص', desc: 'واتساب وبلاغات', show: true, Icon: IconSettings },
     { id: 'danger', label: 'حذف نهائي', desc: 'للمالك فقط', show: isOwner, Icon: IconLock },
   ];
 
@@ -615,7 +617,9 @@ export function Settings() {
         </div>
       )}
 
-      {tab === 'danger' && isOwner && sessionOrg && (
+      {tab === 'support' ? (
+        <SupportLicense />
+      ) : tab === 'danger' && isOwner && sessionOrg && (
         <div className="settings-tab-panel">
           <section className="purchase-panel danger-zone">
             <div className="panel-heading">

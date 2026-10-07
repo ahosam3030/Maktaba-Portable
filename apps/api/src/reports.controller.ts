@@ -389,4 +389,49 @@ export class ReportsController {
     const series = Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
     return { groupBy: g, from: fromDate.toISOString(), to: toDate.toISOString(), series };
   }
+
+  @Get('export/csv')
+  async exportCsv(
+    @CurrentUser() user: AuthUser,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const summary = await this.summary(user, from, to);
+    const esc = (v: unknown) => {
+      const s = String(v ?? '');
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const lines: string[] = [];
+    lines.push('القسم,البند,القيمة');
+    lines.push(['المبيعات', 'عدد الفواتير', summary.sales.count].map(esc).join(','));
+    lines.push(['المبيعات', 'الإجمالي', summary.sales.revenue].map(esc).join(','));
+    lines.push(['المبيعات', 'الصافي', summary.sales.net].map(esc).join(','));
+    lines.push(['المبيعات', 'التكلفة', summary.sales.cogs].map(esc).join(','));
+    lines.push(['المبيعات', 'مجمل الربح', summary.sales.grossProfit].map(esc).join(','));
+    lines.push(['الخدمات', 'عدد الفواتير', summary.services.count].map(esc).join(','));
+    lines.push(['الخدمات', 'الصافي', summary.services.net].map(esc).join(','));
+    lines.push(['الخدمات', 'المحصل', summary.services.paid].map(esc).join(','));
+    lines.push(['مجمع', 'إيراد', summary.combined.revenue].map(esc).join(','));
+    lines.push(['مجمع', 'ربح تقديري', summary.combined.profit].map(esc).join(','));
+    lines.push(['الخزينة', 'إيراد الفترة', summary.cash.income].map(esc).join(','));
+    lines.push(['الخزينة', 'مصروف الفترة', summary.cash.expense].map(esc).join(','));
+    lines.push(['الخزينة', 'رصيد كلي', summary.cash.balanceAllTime].map(esc).join(','));
+    lines.push(['رأس المال', 'في البضاعة', summary.capital.inStock].map(esc).join(','));
+    lines.push(['رأس المال', 'متبقي عامل', summary.capital.working].map(esc).join(','));
+    lines.push(['المشتريات', 'مديونية الموردين', summary.purchases.supplierDebt].map(esc).join(','));
+    lines.push('');
+    lines.push('صنف,باركود,رصيد,تكلفة,بيع,قيمة تكلفة,قيمة بيع');
+    for (const r of summary.inventory?.items || []) {
+      lines.push([r.name, r.barcode, r.stock, r.currentCost, r.salePrice, r.valueAtCost, r.valueAtSale].map(esc).join(','));
+    }
+    const bom = '\ufeff';
+    return {
+      filename: `maktaba-report-${(from || 'all').slice(0, 10)}_${(to || 'all').slice(0, 10)}.csv`,
+      contentType: 'text/csv; charset=utf-8',
+      body: bom + lines.join('\n'),
+    };
+  }
+
+
 }

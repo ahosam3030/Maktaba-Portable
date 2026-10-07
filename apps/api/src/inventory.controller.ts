@@ -85,6 +85,31 @@ export class InventoryController {
     return { imageUrl, size: file.size };
   }
 
+
+  @Get('alerts/low-stock')
+  async lowStockAlerts(@CurrentUser() user: AuthUser) {
+    const products = await this.prisma.product.findMany({
+      where: { organizationId: user.organizationId, active: true },
+      include: {
+        purchaseItems: { where: { invoice: { organizationId: user.organizationId } } },
+        returnItems: {
+          where: { purchaseReturn: { organizationId: user.organizationId } },
+          include: { invoiceItem: true },
+        },
+        stockMovements: { where: { organizationId: user.organizationId } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    const mapped = products.map((product) => this.mapProduct(product));
+    const low = mapped.filter((p) => p.lowStock || (p.minStock > 0 && p.stock <= p.minStock));
+    return {
+      count: low.length,
+      items: low.map((p) => ({
+        id: p.id, name: p.name, barcode: p.barcode, stock: p.stock, minStock: p.minStock, unit: p.unit,
+      })),
+    };
+  }
+
   @Post('products')
   async createProduct(@CurrentUser() user: AuthUser, @Body() body: ProductBody) {
     const name = body.name?.trim();
