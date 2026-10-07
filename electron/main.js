@@ -205,7 +205,7 @@ function ensureDatabase(env) {
     console.warn('prisma CLI missing — skip db push');
     return;
   }
-  const r = spawnAsNodeSync([prismaCli, 'db', 'push', '--skip-generate', '--accept-data-loss'], {
+  const r = spawnAsNodeSync([prismaCli, 'db', 'push', '--skip-generate''], {
     cwd: API_DIR,
     env,
     timeout: 120000,
