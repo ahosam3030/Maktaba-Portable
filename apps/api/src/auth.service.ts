@@ -18,6 +18,11 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
+  async setupStatus() {
+    const count = await this.prisma.user.count();
+    return { needsSetup: count === 0, product: 'Maktaba-Portable' };
+  }
+
   async register(input: {
     organizationName?: string;
     slug?: string;
@@ -27,9 +32,13 @@ export class AuthService {
     password?: string;
     setupSecret?: string;
   }) {
+    const userCount = await this.prisma.user.count();
     const expected = process.env.SETUP_SECRET || '';
-    // بدون SETUP_SECRET في البيئة = التسجيل العام مقفول تمامًا
-    if (!expected || input.setupSecret !== expected) {
+    const isFirstRun = userCount === 0;
+    const secretOk = expected && input.setupSecret === expected;
+    const firstRunOk = isFirstRun && (input.setupSecret === 'FIRST_RUN' || input.setupSecret === expected || !expected);
+    // أول تثبيت فقط بدون مستخدمين، أو SETUP_SECRET صحيح
+    if (!secretOk && !firstRunOk) {
       throw new ForbiddenException('التسجيل العام مقفول. المالك يضيف الحسابات من داخل النظام.');
     }
     const organizationName = input.organizationName?.trim();

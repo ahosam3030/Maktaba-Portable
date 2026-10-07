@@ -7,6 +7,7 @@ import {
   apiRequest,
   registerOrganization,
   login,
+  fetchSetupStatus,
   saveSession,
   clearSession,
   getToken,
@@ -39,6 +40,7 @@ type AuthMode = 'login' | 'register';
 
 export function App() {
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [needsSetup, setNeedsSetup] = useState(false);
   const [connection, setConnection] = useState<ConnectionState>(navigator.onLine ? 'checking' : 'offline');
   const [pendingSync, setPendingSync] = useState(0);
   const [syncBusy, setSyncBusy] = useState(false);
@@ -121,6 +123,13 @@ export function App() {
     return () => { cancelled = true; window.clearInterval(id); };
   }, [connection]);
 
+  useEffect(() => {
+    fetchSetupStatus()
+      .then((s) => setNeedsSetup(!!s.needsSetup))
+      .catch(() => setNeedsSetup(false));
+  }, [connection, apiStatus]);
+
+
 useEffect(() => {
     void refreshLocal();
     void checkApi();
@@ -179,7 +188,8 @@ useEffect(() => {
         updatedAt: new Date().toISOString(),
       });
       await refreshLocal();
-      setMessage(`تم إنشاء «${result.organization.name}» وربطها بحسابك.`);
+      setNeedsSetup(false);
+      setMessage(`تم إعداد البرنامج — مرحبًا بك في «${result.organization.name}»`);
       setPassword('');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'تعذر إنشاء الحساب.');
@@ -348,7 +358,7 @@ useEffect(() => {
               <span>نظام إدارة مراكز الخدمات والمكتبات</span>
             </div>
           </div>
-          <span className="product-version">v1.0</span>
+          <span className="product-version">Portable v1.2</span>
         </header>
         <div className="product-login-body">
           <section className="product-login-pitch">
@@ -373,58 +383,72 @@ useEffect(() => {
             </ul>
           </section>
           <section className="product-login-card">
-            <div className="product-login-card-head">
-              <h2>تسجيل الدخول</h2>
-              <p>استخدم البريد وكلمة المرور الصادرة من إدارة المركز</p>
-            </div>
-            <div className="form-grid auth-form">
-              <label>
-                البريد الإلكتروني
-                <input
-                  type="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  dir="ltr"
-                  placeholder="name@example.com"
-                  autoComplete="username"
-                />
-              </label>
-              <label>
-                كلمة المرور
-                <input
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  dir="ltr"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void handleLogin();
-                  }}
-                />
-              </label>
-            </div>
-            <button
-              className="primary-btn product-login-submit"
-              type="button"
-              onClick={() => void handleLogin()}
-              disabled={busy}
-            >
-              {busy ? 'جارٍ الدخول...' : 'دخول إلى النظام'}
-            </button>
+            {needsSetup ? (
+              <>
+                <div className="product-login-card-head">
+                  <h2>إعداد البرنامج لأول مرة</h2>
+                  <p>أنشئ حساب المالك — مرة واحدة فقط على هذا الجهاز</p>
+                </div>
+                <div className="form-grid auth-form">
+                  <label>
+                    اسم المركز / المكتبة
+                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="مركز الخدمات" />
+                  </label>
+                  <label>
+                    المعرّف المختصر (إنجليزي)
+                    <input value={slug} onChange={(e) => setSlug(e.target.value)} dir="ltr" placeholder="my-center" />
+                  </label>
+                  <label>
+                    هاتف (اختياري)
+                    <input value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" />
+                  </label>
+                  <label>
+                    اسم المالك
+                    <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
+                  </label>
+                  <label>
+                    البريد الإلكتروني
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" />
+                  </label>
+                  <label>
+                    كلمة المرور (كبير+صغير+رقم+رمز)
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} dir="ltr" />
+                  </label>
+                </div>
+                <button className="primary-btn product-login-submit" type="button" onClick={() => void handleRegister()} disabled={busy}>
+                  {busy ? 'جارٍ الإعداد...' : 'بدء استخدام البرنامج'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="product-login-card-head">
+                  <h2>تسجيل الدخول</h2>
+                  <p>استخدم بريد وكلمة مرور المالك أو الموظف</p>
+                </div>
+                <div className="form-grid auth-form">
+                  <label>
+                    البريد الإلكتروني
+                    <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} dir="ltr" placeholder="name@example.com" autoComplete="username" />
+                  </label>
+                  <label>
+                    كلمة المرور
+                    <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} dir="ltr" autoComplete="current-password" onKeyDown={(e) => { if (e.key === 'Enter') void handleLogin(); }} />
+                  </label>
+                </div>
+                <button className="primary-btn product-login-submit" type="button" onClick={() => void handleLogin()} disabled={busy}>
+                  {busy ? 'جارٍ الدخول...' : 'دخول إلى النظام'}
+                </button>
+              </>
+            )}
             {message ? (
-              <p
-                className={
-                  'feedback product-login-msg' +
-                  (/فشل|غير|خطأ|غير صحيحة/i.test(message) ? ' is-error' : '')
-                }
-                role="status"
-              >
+              <p className={'feedback product-login-msg' + (/فشل|غير|خطأ|غير صحيحة/i.test(message) ? ' is-error' : '')} role="status">
                 {message}
               </p>
             ) : null}
             <p className="product-login-footnote">
-              لا يمكن إنشاء حساب من هذه الشاشة. حسابات الموظفين يُنشئها المالك بعد الدخول.
+              {needsSetup
+                ? 'بعد الإعداد لن تظهر هذه الشاشة مرة أخرى. احفظ بريدك وكلمة المرور.'
+                : 'حسابات الموظفين يُنشئها المالك من الإعدادات بعد الدخول.'}
             </p>
           </section>
         </div>

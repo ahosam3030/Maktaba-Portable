@@ -83,9 +83,18 @@ export function formatApiErrorMessage(payload: unknown, fallback: string): strin
   return fallback;
 }
 
+export async function fetchSetupStatus(): Promise<{ needsSetup: boolean }> {
+  const response = await fetch(`${API_URL}/auth/setup-status`);
+  const result = await response.json().catch(() => ({ needsSetup: false }));
+  if (!response.ok) return { needsSetup: false };
+  return result as { needsSetup: boolean };
+}
+
 export async function registerOrganization(input: RegistrationInput): Promise<AuthResult> {
   const response = await fetch(`${API_URL}/auth/register`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...input, setupSecret: 'FIRST_RUN' }),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(formatApiErrorMessage(result, 'فشل إنشاء الحساب. راجع البيانات وحاول مرة أخرى.'));

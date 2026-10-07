@@ -47,6 +47,29 @@ if (process.platform === 'win32') {
 
 
 
+
+function autoBackupDaily() {
+  try {
+    ensureDirs();
+    if (!fs.existsSync(DB_FILE)) return;
+    const day = new Date().toISOString().slice(0, 10);
+    const dest = path.join(BACKUPS_DIR, `auto-${day}.db`);
+    if (fs.existsSync(dest)) return;
+    fs.copyFileSync(DB_FILE, dest);
+    // احتفظ بآخر 14 نسخة تلقائية
+    const autos = fs
+      .readdirSync(BACKUPS_DIR)
+      .filter((f) => f.startsWith('auto-') && f.endsWith('.db'))
+      .sort();
+    while (autos.length > 14) {
+      const old = autos.shift();
+      try {
+        fs.unlinkSync(path.join(BACKUPS_DIR, old));
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
+
 function ensureDirs() {
   for (const d of [DATA_DIR, BACKUPS_DIR]) {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
@@ -104,7 +127,7 @@ function startApi() {
     NODE_ENV: 'production',
     WEB_DIST: WEB_DIST,
     DATABASE_URL: dbUrl,
-    JWT_SECRET: process.env.JWT_SECRET || 'portable-desktop-change-me-in-production',
+    JWT_SECRET: process.env.JWT_SECRET || require('crypto').randomBytes(32).toString('hex'),
     CORS_ORIGINS: APP_URL,
   };
 
@@ -385,6 +408,7 @@ function createWindow() {
 
 async function boot() {
   ensureDirs();
+  autoBackupDaily();
   buildMenu();
 
   if (!fs.existsSync(WEB_DIST) || !fs.existsSync(path.join(WEB_DIST, 'index.html'))) {

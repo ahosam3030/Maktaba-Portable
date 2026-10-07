@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Delete, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { AuthUser, CurrentUser, JwtAuthGuard } from './auth';
@@ -21,6 +21,12 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly audit: AuditService,
   ) {}
+
+
+  @Get('setup-status')
+  setupStatus() {
+    return this.auth.setupStatus();
+  }
 
   /** التسجيل العام معطّل — إنشاء المكتبة عبر سكربت seed أو بمفتاح SETUP_SECRET */
   @Post('register')
