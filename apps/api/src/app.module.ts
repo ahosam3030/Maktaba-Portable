@@ -40,7 +40,7 @@ if (!jwtSecret || WEAK_JWT.has(jwtSecret) || jwtSecret.length < 32) {
     PrismaModule,
     JwtModule.register({
       secret: jwtSecret,
-      signOptions: { expiresIn: '2h' },
+      signOptions: { expiresIn: '12h' },
     }),
   ],
   controllers: [

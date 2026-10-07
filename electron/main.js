@@ -9,21 +9,74 @@ const { spawn } = require('child_process');
 const http = require('http');
 
 function resolveRoot() {
-  // أثناء التطوير: مجلد المشروع. بعد التغليف: resources/maktaba
+  // كود البرنامج (API + واجهة): بعد التغليف في resources، التطوير = جذر المشروع
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'maktaba');
   }
   return path.join(__dirname, '..');
 }
 
+/** بيانات العميل دائمًا خارج مجلد التثبيت حتى لا تُمس عند التحديث/الإلغاء */
+function resolveUserDataRoot() {
+  try {
+    return path.join(app.getPath('userData'), 'maktaba-data');
+  } catch (_) {
+    return path.join(resolveRoot(), 'data');
+  }
+}
+
 const ROOT = resolveRoot();
 const API_DIR = path.join(ROOT, 'apps', 'api');
 const WEB_DIST = path.join(ROOT, 'apps', 'web', 'dist');
-const DATA_DIR = path.join(ROOT, 'data');
-const BACKUPS_DIR = path.join(ROOT, 'backups');
-const DB_FILE = path.join(DATA_DIR, 'maktaba.db');
-const PORT = Number(process.env.PORT || 3000);
-const APP_URL = `http://127.0.0.1:${PORT}`;
+let DATA_DIR = path.join(ROOT, 'data');
+let BACKUPS_DIR = path.join(ROOT, 'backups');
+let DB_FILE = path.join(DATA_DIR, 'maktaba.db');
+let UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+let CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+let PORT = Number(process.env.PORT || 3000);
+let APP_URL = `http://127.0.0.1:${PORT}`;
+
+function initUserPaths() {
+  DATA_DIR = resolveUserDataRoot();
+  BACKUPS_DIR = path.join(DATA_DIR, 'backups');
+  DB_FILE = path.join(DATA_DIR, 'maktaba.db');
+  UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+  CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+}
+
+function loadOrCreateConfig() {
+  ensureDirs();
+  const crypto = require('crypto');
+  let cfg = {};
+  try {
+    if (fs.existsSync(CONFIG_FILE)) {
+      cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+    }
+  } catch (_) {
+    cfg = {};
+  }
+  let changed = false;
+  if (!cfg.jwtSecret || String(cfg.jwtSecret).length < 32) {
+    cfg.jwtSecret = crypto.randomBytes(32).toString('hex');
+    changed = true;
+  }
+  if (!cfg.licenseSecret || String(cfg.licenseSecret).length < 32) {
+    cfg.licenseSecret = crypto.randomBytes(32).toString('hex');
+    changed = true;
+  }
+  if (!cfg.port) {
+    cfg.port = 3000;
+    changed = true;
+  }
+  if (changed) {
+    try {
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8');
+    } catch (_) {}
+  }
+  PORT = Number(cfg.port) || 3000;
+  APP_URL = `http://127.0.0.1:${PORT}`;
+  return cfg;
+}
 
 let mainWindow = null;
 let apiProcess = null;
@@ -71,7 +124,7 @@ function autoBackupDaily() {
 }
 
 function ensureDirs() {
-  for (const d of [DATA_DIR, BACKUPS_DIR]) {
+  for (const d of [DATA_DIR, BACKUPS_DIR, UPLOADS_DIR]) {
     if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
   }
 }
@@ -103,23 +156,94 @@ function waitForApi(maxMs = 90000) {
 }
 
 
-function killPort3000() {
-  if (process.platform !== 'win32') return;
+
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const net = require('net');
+    const s = net.createServer();
+    s.once('error', () => resolve(false));
+    s.once('listening', () => s.close(() => resolve(true)));
+    s.listen(port, '127.0.0.1');
+  });
+}
+
+async function pickPort(preferred) {
+  for (const p of [preferred, 3000, 3847, 4711, 5123, 8765]) {
+    if (await isPortFree(p)) return p;
+  }
+  return preferred;
+}
+
+/** تشغيل سكربت Node عبر ثنائي Electron (لا يحتاج Node.js عند العميل) */
+function spawnAsNode(scriptArgs, opts = {}) {
+  const electronPath = process.execPath;
+  const env = { ...(opts.env || process.env), ELECTRON_RUN_AS_NODE: '1' };
+  return spawn(electronPath, scriptArgs, {
+    ...opts,
+    env,
+    shell: false,
+    windowsHide: true,
+  });
+}
+
+function spawnAsNodeSync(scriptArgs, opts = {}) {
+  const { spawnSync } = require('child_process');
+  const electronPath = process.execPath;
+  const env = { ...(opts.env || process.env), ELECTRON_RUN_AS_NODE: '1' };
+  return spawnSync(electronPath, scriptArgs, {
+    ...opts,
+    env,
+    shell: false,
+    windowsHide: true,
+    encoding: 'utf8',
+  });
+}
+
+function ensureDatabase(env) {
+  const prismaCli = path.join(API_DIR, 'node_modules', 'prisma', 'build', 'index.js');
+  if (!fs.existsSync(prismaCli)) {
+    console.warn('prisma CLI missing — skip db push');
+    return;
+  }
+  const r = spawnAsNodeSync([prismaCli, 'db', 'push', '--skip-generate', '--accept-data-loss'], {
+    cwd: API_DIR,
+    env,
+    timeout: 120000,
+  });
+  if (r.status !== 0) {
+    const msg = (r.stderr || r.stdout || '').toString().slice(0, 800);
+    console.error('prisma db push failed', msg);
+    throw new Error('تعذر تجهيز قاعدة البيانات.\n' + msg);
+  }
+}
+
+function stopApiSync() {
+  if (!apiProcess || apiProcess.killed) return;
   try {
-    const { execSync } = require('child_process');
-    // مزامنة: انتظر انتهاء القتل قبل تشغيل API جديد (تجنب قتل العملية الجديدة)
-    execSync(
-      'powershell.exe -NoProfile -Command "Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"',
-      { windowsHide: true, stdio: 'ignore', timeout: 8000 },
-    );
+    if (process.platform === 'win32' && apiProcess.pid) {
+      spawn('taskkill', ['/pid', String(apiProcess.pid), '/f', '/t'], { shell: true, windowsHide: true });
+    } else {
+      apiProcess.kill('SIGTERM');
+    }
+  } catch (_) {}
+  apiProcess = null;
+  // انتظر تحرير الملف
+  try {
+    require('child_process').execSync(process.platform === 'win32' ? 'timeout /t 2 /nobreak >nul' : 'sleep 2', {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
   } catch (_) {}
 }
 
-function startApi() {
-  // Prisma على ويندوز يحتاج مسارًا بشرطات مائلة
-  const dbUrl =
-    process.env.DATABASE_URL ||
-    `file:${String(DB_FILE).replace(/\\/g, '/')}`;
+async function startApi(cfg) {
+  const dbUrl = `file:${String(DB_FILE).replace(/\\\\/g, '/')}`;
+  PORT = await pickPort(Number(cfg.port) || 3000);
+  cfg.port = PORT;
+  try {
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8');
+  } catch (_) {}
+  APP_URL = `http://127.0.0.1:${PORT}`;
 
   const env = {
     ...process.env,
@@ -127,47 +251,43 @@ function startApi() {
     NODE_ENV: 'production',
     WEB_DIST: WEB_DIST,
     DATABASE_URL: dbUrl,
-    JWT_SECRET: process.env.JWT_SECRET || require('crypto').randomBytes(32).toString('hex'),
-    CORS_ORIGINS: APP_URL,
+    JWT_SECRET: cfg.jwtSecret,
+    LICENSE_SECRET: cfg.licenseSecret,
+    UPLOADS_DIR: UPLOADS_DIR,
+    CORS_ORIGINS: `${APP_URL},http://127.0.0.1:${PORT},http://localhost:${PORT}`,
+    ALLOW_LICENSE_ISSUE: process.env.ALLOW_LICENSE_ISSUE || 'NO',
+    ELECTRON_RUN_AS_NODE: '1',
   };
 
-  killPort3000();
-  // انتظار قصير بعد تحرير المنفذ
-  try { require('child_process').execSync('timeout /t 1 /nobreak >nul', { stdio: 'ignore', windowsHide: true }); } catch (_) {}
-  // مزامنة .env حتى لا يتجاوز dotenv مسارًا خاطئًا
   try {
     const envPath = path.join(API_DIR, '.env');
-    const lines = [
-      `DATABASE_URL="${dbUrl}"`,
-      `PORT=${PORT}`,
-      `JWT_SECRET="${env.JWT_SECRET}"`,
-      'NODE_ENV=production',
-    ];
-    fs.writeFileSync(envPath, lines.join('\n') + '\n', 'utf8');
+    fs.writeFileSync(
+      envPath,
+      [
+        `DATABASE_URL="${dbUrl}"`,
+        `PORT=${PORT}`,
+        `JWT_SECRET="${cfg.jwtSecret}"`,
+        `LICENSE_SECRET="${cfg.licenseSecret}"`,
+        `UPLOADS_DIR="${String(UPLOADS_DIR).replace(/\\\\/g, '/')}"`,
+        'NODE_ENV=production',
+        'ALLOW_LICENSE_ISSUE=NO',
+      ].join('\n') + '\n',
+      'utf8',
+    );
   } catch (_) {}
-  const distMain = path.join(API_DIR, 'dist', 'main.js');
-  const useDist = fs.existsSync(distMain);
 
-  if (useDist) {
-    // يجب تشغيل الـ API بـ Node وليس بـ electron.exe
-    const nodeCmd = process.platform === 'win32' ? 'node.exe' : 'node';
-    apiProcess = spawn(nodeCmd, [distMain], {
-      cwd: API_DIR,
-      env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      windowsHide: true,
-    });
-  } else {
-    const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    apiProcess = spawn(npmCmd, ['run', 'start:dev'], {
-      cwd: API_DIR,
-      env: { ...env, NODE_ENV: 'development' },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      windowsHide: true,
-    });
+  ensureDatabase(env);
+
+  const distMain = path.join(API_DIR, 'dist', 'main.js');
+  if (!fs.existsSync(distMain)) {
+    throw new Error('ملف الخادم غير مبني (apps/api/dist). شغّل build-desktop.bat ثم أعد المحاولة.');
   }
+
+  apiProcess = spawnAsNode([distMain], {
+    cwd: API_DIR,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
   let apiErrLog = '';
   apiProcess.stdout?.on('data', (d) => {
@@ -189,22 +309,18 @@ function startApi() {
       try {
         fs.appendFileSync(
           path.join(DATA_DIR, 'api-error.log'),
-          `\n[exit code ${code}] ${new Date().toISOString()}\n`,
+          `\\n[exit code ${code}] ${new Date().toISOString()}\\n`,
         );
       } catch (_) {}
-      const hint =
-        code === 1
-          ? '\n\nغالبًا المنفذ 3000 مشغول أو مشكلة في قاعدة البيانات.\nأقفل أي نسخة قديمة من Maktaba ثم أعد التشغيل.\nالتفاصيل: data/api-error.log'
-          : '';
       dialog.showErrorBox(
         'Maktaba',
-        `توقف الخادم المحلي (رمز ${code}). أعد تشغيل التطبيق.${hint}`,
+        `توقف الخادم المحلي (رمز ${code}). أعد تشغيل التطبيق.\\nالتفاصيل: ${path.join(DATA_DIR, 'api-error.log')}`,
       );
     }
   });
 }
 
-function stamp() {
+function stamp()function stamp() {
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
@@ -315,7 +431,7 @@ function buildMenu() {
       label: 'عرض',
       submenu: [
         { role: 'reload', label: 'إعادة تحميل' },
-        { role: 'toggleDevTools', label: 'أدوات المطوّر' },
+        { role: 'reload', label: 'أدوات المطوّر' },
         { type: 'separator' },
         { role: 'resetZoom', label: 'حجم افتراضي' },
         { role: 'zoomIn', label: 'تكبير' },
@@ -335,7 +451,7 @@ function buildMenu() {
               type: 'info',
               title: 'Maktaba',
               message: 'نظام إدارة المكتبة والخدمات',
-              detail: 'إصدار Portable 1.0 — سطح مكتب + SQLite محلي',
+              detail: 'إصدار Portable 1.3 — سطح مكتب + SQLite محلي',
             }),
         },
       ],
@@ -407,7 +523,9 @@ function createWindow() {
 }
 
 async function boot() {
+  initUserPaths();
   ensureDirs();
+  const cfg = loadOrCreateConfig();
   autoBackupDaily();
   buildMenu();
 
@@ -420,7 +538,7 @@ async function boot() {
     return;
   }
 
-  startApi();
+  await startApi(cfg);
   try {
     await waitForApi();
   } catch (e) {

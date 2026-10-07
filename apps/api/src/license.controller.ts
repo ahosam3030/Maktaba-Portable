@@ -4,7 +4,7 @@ import { JwtAuthGuard, CurrentUser, AuthUser, isAdminRole } from './auth';
 import { PrismaService } from './prisma.service';
 
 function licenseSecret() {
-  return process.env.LICENSE_SECRET || process.env.JWT_SECRET || 'portable-license-secret-change-me';
+  return process.env.LICENSE_SECRET || process.env.JWT_SECRET || '';
 }
 
 export function generateSerial(maxDevices: number): string {
@@ -16,12 +16,14 @@ export function generateSerial(maxDevices: number): string {
 }
 
 export function parseAndValidateSerial(serial: string): { maxDevices: number; ok: boolean } {
+  const secret = licenseSecret();
+  if (!secret || secret.length < 16) return { maxDevices: 0, ok: false };
   const s = String(serial || '').trim().toUpperCase();
   const m = /^MAK-([A-F0-9]{4})-([A-F0-9]{4})-([A-F0-9]{4})-(\d{1,2})([A-F0-9]{4})$/.exec(s);
   if (!m) return { maxDevices: 0, ok: false };
   const maxDevices = parseInt(m[4], 10);
   const payload = `${m[1]}-${m[2]}-${m[3]}:${maxDevices}`;
-  const sig = createHmac('sha256', licenseSecret()).update(payload).digest('hex').slice(0, 4).toUpperCase();
+  const sig = createHmac('sha256', secret).update(payload).digest('hex').slice(0, 4).toUpperCase();
   return { maxDevices, ok: sig === m[5] && maxDevices >= 1 };
 }
 
@@ -93,8 +95,14 @@ export class LicenseController {
 
   @Post('issue')
   async issue(@CurrentUser() user: AuthUser, @Body() body: { maxDevices?: number }) {
+    if (process.env.ALLOW_LICENSE_ISSUE !== 'YES') {
+      throw new BadRequestException('إصدار المفاتيح غير متاح في نسخة العميل. تواصل مع البائع.');
+    }
     if (user.role !== 'OWNER' && !isAdminRole(user.role)) {
       throw new BadRequestException('للمالك فقط');
+    }
+    if (!licenseSecret()) {
+      throw new BadRequestException('LICENSE_SECRET غير مضبوط');
     }
     const maxDevices = Math.max(1, Math.min(20, Number(body.maxDevices) || 1));
     return { serialKey: generateSerial(maxDevices), maxDevices };
@@ -122,7 +130,7 @@ export class SupportController {
 
   @Get('config')
   config() {
-    const wa = process.env.SUPPORT_WHATSAPP || '201127897245';
+    const wa = process.env.SUPPORT_WHATSAPP || '';
     return {
       whatsapp: wa,
       whatsappUrl: `https://wa.me/${wa.replace(/\D/g, '')}`,
