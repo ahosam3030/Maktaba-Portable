@@ -9,13 +9,11 @@ echo.
 
 call preflight-check.bat
 if errorlevel 1 (
-  echo.
-  echo فشل الفحص المسبق — أصلح الأخطاء قبل البناء
+  echo فشل الفحص المسبق
   pause
   exit /b 1
 )
 
-echo.
 call build-desktop.bat
 if errorlevel 1 exit /b 1
 
@@ -28,18 +26,35 @@ if not exist "data\" mkdir data
 if not exist "data\.gitkeep" echo. > data\.gitkeep
 
 echo.
-echo بناء حزم Windows x64...
-call npx electron-builder --win portable nsis --x64
+echo [أ] بناء مجلد التشغيل win-unpacked (بدون NSIS)...
+call npx electron-builder --win dir --x64
 if errorlevel 1 (
-  echo فشل electron-builder
+  echo فشل بناء win-unpacked
   pause
   exit /b 1
 )
 
 echo.
-echo ========== تم بناء Release 1.5.0 ==========
+echo [ب] محاولة بناء Portable exe...
+call npx electron-builder --win portable --x64
+if errorlevel 1 (
+  echo.
+  echo تحذير: فشل Portable بسبب الايقونة/NSIS
+  echo يمكنك التشغيل مباشرة من:
+  echo   release\win-unpacked\Maktaba.exe
+  echo.
+  echo انسخ مجلد release\win-unpacked إلى أي مكان وشغّل Maktaba.exe
+  pause
+  exit /b 0
+)
+
+echo.
+echo ========== تم البناء ==========
+echo.
+echo 1^) تشغيل فوري بدون تثبيت:
+echo    release\win-unpacked\Maktaba.exe
+echo.
+echo 2^) ملف محمول إن وُجد:
 dir /b release\*.exe 2>nul
 echo.
-echo الملفات في مجلد release\
-echo قبل التوزيع: RELEASE.md و TEST-CHECKLIST.md
 pause

@@ -49,8 +49,8 @@
         ]
       },
       {
-        "from": "دليل-الاستخدام.md",
-        "to": "maktaba/USER-GUIDE.md"
+        "from": "README.md",
+        "to": "maktaba/README.md"
       },
       {
         "from": "backup.bat",
@@ -64,38 +64,27 @@
     "win": {
       "target": [
         {
-          "target": "portable",
+          "target": "dir",
           "arch": [
             "x64"
           ]
         },
         {
-          "target": "nsis",
+          "target": "portable",
           "arch": [
             "x64"
           ]
         }
       ],
-      "artifactName": "Maktaba-Setup-${version}.${ext}",
-      "publisherName": "Maktaba",
+      "artifactName": "Maktaba-Portable-${version}.${ext}",
       "icon": "build/icon.ico",
       "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
-      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Maktaba",
-      "uninstallDisplayName": "Maktaba",
-      "installerLanguages": [
-        "en_US"
-      ],
-      "language": "1033",
-      "runAfterFinish": true,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
+      "shortcutName": "Maktaba"
     },
     "icon": "build/icon.png",
     "publish": [
