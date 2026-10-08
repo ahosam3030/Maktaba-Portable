@@ -488,12 +488,14 @@ useEffect(() => {
             </button>
           )}
           {hasPermission(sessionUser, 'sales') && (
-            <button type="button" tabIndex={-1} className={activeSection === 'sales' ? 'active' : ''} onClick={() => setActiveSection('sales')}>
-              <SectionIcon name="sales" className="nav-icon" /><span>المبيعات</span>
-            </button>
-            <button type="button" tabIndex={-1} className={activeSection === 'credit' ? 'active' : ''} onClick={() => setActiveSection('credit')}>
-              <SectionIcon name="sales" className="nav-icon" /><span>الآجل</span>
-            </button>
+            <>
+              <button type="button" tabIndex={-1} className={activeSection === 'sales' ? 'active' : ''} onClick={() => setActiveSection('sales')}>
+                <SectionIcon name="sales" className="nav-icon" /><span>المبيعات</span>
+              </button>
+              <button type="button" tabIndex={-1} className={activeSection === 'credit' ? 'active' : ''} onClick={() => setActiveSection('credit')}>
+                <SectionIcon name="sales" className="nav-icon" /><span>الآجل</span>
+              </button>
+            </>
           )}
           {hasPermission(sessionUser, 'inventory') && (
             <button type="button" tabIndex={-1} className={activeSection === 'inventory' ? 'active' : ''} onClick={() => setActiveSection('inventory')}>
