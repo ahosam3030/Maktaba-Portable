@@ -20,6 +20,50 @@ function escapeHtml(s: string) {
     .replace(/"/g, '&quot;');
 }
 
+/** مقاسات ملصق شائعة (مم) — للطباعة الحرارية أو الورق */
+type LabelSizeId = 'a4-auto' | '40x30' | '50x30' | '50x40' | '60x40' | '70x50' | '80x50' | 'custom';
+
+type LabelSize = {
+  id: LabelSizeId;
+  label: string;
+  widthMm: number;
+  heightMm: number;
+  /** عدد الأعمدة المقترح على A4؛ للطابعة الحرارية = 1 */
+  defaultCols: number;
+  pageMode: 'sheet' | 'roll';
+};
+
+const LABEL_SIZES: LabelSize[] = [
+  { id: 'a4-auto', label: 'ورقة A4 (تلقائي)', widthMm: 0, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
+  { id: '40x30', label: '40×30 مم (رف صغير)', widthMm: 40, heightMm: 30, defaultCols: 4, pageMode: 'sheet' },
+  { id: '50x30', label: '50×30 مم (الأكثر شيوعًا)', widthMm: 50, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
+  { id: '50x40', label: '50×40 مم', widthMm: 50, heightMm: 40, defaultCols: 3, pageMode: 'sheet' },
+  { id: '60x40', label: '60×40 مم', widthMm: 60, heightMm: 40, defaultCols: 3, pageMode: 'sheet' },
+  { id: '70x50', label: '70×50 مم', widthMm: 70, heightMm: 50, defaultCols: 2, pageMode: 'sheet' },
+  { id: '80x50', label: '80×50 مم (رول حراري)', widthMm: 80, heightMm: 50, defaultCols: 1, pageMode: 'roll' },
+  { id: 'custom', label: 'مخصص…', widthMm: 50, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
+];
+
+const SIZE_STORAGE_KEY = 'maktaba.labelSize.v1';
+
+function loadSavedSize(): { id: LabelSizeId; w: number; h: number; cols: number } {
+  try {
+    const raw = localStorage.getItem(SIZE_STORAGE_KEY);
+    if (!raw) return { id: '50x30', w: 50, h: 30, cols: 3 };
+    const j = JSON.parse(raw) as { id?: LabelSizeId; w?: number; h?: number; cols?: number };
+    const preset = LABEL_SIZES.find((s) => s.id === j.id) || LABEL_SIZES[2];
+    return {
+      id: (j.id as LabelSizeId) || '50x30',
+      w: Number(j.w) || preset.widthMm || 50,
+      h: Number(j.h) || preset.heightMm || 30,
+      cols: Number(j.cols) || preset.defaultCols,
+    };
+  } catch {
+    return { id: '50x30', w: 50, h: 30, cols: 3 };
+  }
+}
+
+
 export function Labels() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +71,11 @@ export function Labels() {
   const [selected, setSelected] = useState<Record<string, number>>({});
   const [notice, setNotice] = useState('');
   const inv = loadInvoiceSettings();
-  const [cols, setCols] = useState(3);
+  const saved = loadSavedSize();
+  const [sizeId, setSizeId] = useState<LabelSizeId>(saved.id);
+  const [customW, setCustomW] = useState(saved.w || 50);
+  const [customH, setCustomH] = useState(saved.h || 30);
+  const [cols, setCols] = useState(saved.cols);
   const [showPrice, setShowPrice] = useState(true);
   const [showName, setShowName] = useState(true);
   const [showBarcodeText, setShowBarcodeText] = useState(true);
@@ -37,6 +85,32 @@ export function Labels() {
   const [phone, setPhone] = useState(inv.phone || '');
   const [extraLine, setExtraLine] = useState('');
   const [onlyWithBarcode, setOnlyWithBarcode] = useState(false);
+
+  const activePreset = LABEL_SIZES.find((s) => s.id === sizeId) || LABEL_SIZES[2];
+  const labelW = sizeId === 'custom' ? Math.max(20, Math.min(120, customW || 50)) : (activePreset.widthMm || 0);
+  const labelH = sizeId === 'custom' ? Math.max(15, Math.min(100, customH || 30)) : (activePreset.heightMm || 30);
+  const isRoll = activePreset.pageMode === 'roll' || (sizeId === 'custom' && labelW >= 70 && cols === 1);
+  const isFixedSize = sizeId !== 'a4-auto';
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        SIZE_STORAGE_KEY,
+        JSON.stringify({ id: sizeId, w: labelW || customW, h: labelH || customH, cols }),
+      );
+    } catch { /* ignore */ }
+  }, [sizeId, labelW, labelH, customW, customH, cols]);
+
+  function applySize(id: LabelSizeId) {
+    const p = LABEL_SIZES.find((s) => s.id === id);
+    if (!p) return;
+    setSizeId(id);
+    if (id !== 'custom' && id !== 'a4-auto') {
+      setCustomW(p.widthMm);
+      setCustomH(p.heightMm);
+    }
+    setCols(p.defaultCols);
+  }
 
   useEffect(() => {
     void (async () => {
@@ -139,33 +213,54 @@ export function Labels() {
       setNotice('اسمح بالنوافذ المنبثقة للطباعة.');
       return;
     }
+    const gapMm = isFixedSize ? 2 : 4;
+    const padMm = isFixedSize ? 1.5 : 2.5;
+    const pageMargin = isRoll ? '2mm' : '6mm';
+    const bcH = Math.max(22, Math.min(48, Math.round(labelH * 0.9)));
+    const nameFs = labelH <= 30 ? 10 : labelH <= 40 ? 11 : 12;
+    const priceFs = labelH <= 30 ? 11 : 13;
+    const storeFs = labelH <= 30 ? 8 : 9;
+    const sheetCols = isRoll ? 1 : cols;
+    const labelSizeCss = isFixedSize
+      ? `width: ${labelW}mm; height: ${labelH}mm; max-width: ${labelW}mm; max-height: ${labelH}mm; box-sizing: border-box; overflow: hidden;`
+      : `min-height: ${labelH}mm;`;
+    const sheetCss = isRoll
+      ? `display: flex; flex-direction: column; align-items: center; gap: ${gapMm}mm; padding: 2mm;`
+      : isFixedSize
+        ? `display: flex; flex-wrap: wrap; gap: ${gapMm}mm; padding: 4mm; justify-content: flex-start;`
+        : `display: grid; grid-template-columns: repeat(${sheetCols}, 1fr); gap: ${gapMm}mm; padding: 4mm;`;
+
     w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
-<title>ملصقات باركود</title>
+<title>ملصقات باركود ${isFixedSize ? labelW + '×' + labelH + ' مم' : 'A4'}</title>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
 <style>
-  @page { margin: 6mm; }
+  @page { margin: ${pageMargin}; ${isRoll && isFixedSize ? `size: ${labelW}mm ${labelH}mm;` : ''} }
   body { font-family: Tahoma, Arial, sans-serif; margin: 0; background: #fff; }
-  .sheet { display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: 4mm; padding: 4mm; }
+  .sheet { ${sheetCss} }
   .label {
     border: 1px dashed #94a3b8;
-    border-radius: 4px;
-    padding: 2.5mm 2mm;
+    border-radius: 3px;
+    padding: ${padMm}mm 1.5mm;
     text-align: center;
     page-break-inside: avoid;
-    min-height: 30mm;
+    ${isRoll ? 'page-break-after: always;' : ''}
+    ${labelSizeCss}
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1px;
+    gap: 0.5px;
   }
-  .store { font-size: 9px; font-weight: 800; color: #0f766e; line-height: 1.25; margin-bottom: 1px; }
-  .name { font-size: 11px; font-weight: 700; margin-bottom: 1px; line-height: 1.25; }
-  .price { font-size: 12px; font-weight: 800; color: #0c4a6e; margin: 1px 0; }
-  .code { font-size: 9px; letter-spacing: 0.04em; margin-top: 1px; color: #334155; }
-  .phone { font-size: 8px; color: #64748b; margin-top: 1px; }
-  .extra { font-size: 8px; color: #475569; margin-top: 1px; line-height: 1.2; }
-  svg.bc { max-width: 100%; height: 34px; }
+  .store { font-size: ${storeFs}px; font-weight: 800; color: #0f766e; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .name { font-size: ${nameFs}px; font-weight: 700; line-height: 1.15; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .price { font-size: ${priceFs}px; font-weight: 800; color: #0c4a6e; margin: 0; }
+  .code { font-size: 8px; letter-spacing: 0.03em; color: #334155; }
+  .phone { font-size: 7px; color: #64748b; }
+  .extra { font-size: 7px; color: #475569; line-height: 1.15; max-width: 100%; overflow: hidden; }
+  svg.bc { max-width: 96%; height: ${bcH}px; }
+  @media print {
+    .label { border-color: #cbd5e1; }
+  }
 </style></head><body>
 <div class="sheet">${labelsHtml}</div>
 <script>
@@ -173,14 +268,16 @@ export function Labels() {
     var code = el.getAttribute('data-barcode') || '';
     if (!code) return;
     try {
-      JsBarcode(el, code, { format: 'CODE128', width: 1.4, height: 36, displayValue: false, margin: 0 });
+      JsBarcode(el, code, { format: 'CODE128', width: ${labelH <= 30 ? 1.2 : 1.4}, height: ${bcH}, displayValue: false, margin: 0 });
     } catch (e) {}
   });
   window.onload = function() { setTimeout(function(){ window.print(); }, 300); };
 <\/script>
 </body></html>`);
     w.document.close();
-    setNotice(`جاهز للطباعة: ${items.reduce((s, i) => s + i.copies, 0)} ملصق.`);
+    const totalCopies = items.reduce((s, i) => s + i.copies, 0);
+    const sizeNote = isFixedSize ? ` — مقاس ${labelW}×${labelH} مم` : ' — ورقة A4';
+    setNotice(`جاهز للطباعة: ${totalCopies} ملصق${sizeNote}. في نافذة الطباعة اختر المقاس/الورقة المناسبة.`);
   }
 
   return (
@@ -189,7 +286,7 @@ export function Labels() {
         <div>
           <h2>ملصقات الباركود</h2>
           <p className="muted-sm">
-            اختر الأصناف واطبع ملصقات للرف أو العبوة (CODE128).
+            اختر مقاس الملصق والأصناف ثم اطبع (CODE128). المقاس يُحفظ على هذا الجهاز.
             {products.length > 0 && (
               <>
                 {' '}
@@ -220,13 +317,41 @@ export function Labels() {
           />
         </label>
         <label>
-          <span>أعمدة الصفحة</span>
-          <select value={cols} onChange={(e) => setCols(Number(e.target.value))}>
-            <option value={2}>2</option>
-            <option value={3}>3</option>
-            <option value={4}>4</option>
+          <span>مقاس الملصق</span>
+          <select value={sizeId} onChange={(e) => applySize(e.target.value as LabelSizeId)}>
+            {LABEL_SIZES.map((s) => (
+              <option key={s.id} value={s.id}>{s.label}</option>
+            ))}
           </select>
         </label>
+        {sizeId === 'custom' && (
+          <>
+            <label>
+              <span>العرض (مم)</span>
+              <input type="number" min={20} max={120} value={customW} onChange={(e) => setCustomW(Number(e.target.value) || 50)} style={{ width: 72 }} />
+            </label>
+            <label>
+              <span>الارتفاع (مم)</span>
+              <input type="number" min={15} max={100} value={customH} onChange={(e) => setCustomH(Number(e.target.value) || 30)} style={{ width: 72 }} />
+            </label>
+          </>
+        )}
+        {!isRoll && (
+          <label>
+            <span>أعمدة الصفحة</span>
+            <select value={cols} onChange={(e) => setCols(Number(e.target.value))}>
+              <option value={1}>1</option>
+              <option value={2}>2</option>
+              <option value={3}>3</option>
+              <option value={4}>4</option>
+            </select>
+          </label>
+        )}
+        {isFixedSize && (
+          <span className="muted-sm" style={{ alignSelf: 'end', paddingBottom: 6 }}>
+            {labelW}×{labelH} مم
+          </span>
+        )}
         <label className="labels-check">
           <input type="checkbox" checked={showStoreName} onChange={(e) => setShowStoreName(e.target.checked)} />
           <span>اسم المكتبة</span>
