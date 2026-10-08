@@ -1,10 +1,14 @@
+# Maktaba Portable v1.5.0
+
+> البناء: **RELEASE.md** · الاختبار: **TEST-CHECKLIST.md**
+
 ## v1.4
 - ترخيص Ed25519 (MAK2)
 - تصدير Excel للتقارير
 - تحديث تلقائي عبر GitHub Releases (بعد النشر)
 - قوالب عقد وواتساب وتوقيع كود
 
-# Maktaba Portable v1.4.0 — منتج سطح مكتب
+# Maktaba Portable v1.5.0 — منتج سطح مكتب
 
 تطبيق Windows (Electron + SQLite) لمراكز الخدمات والمكتبات.
 
