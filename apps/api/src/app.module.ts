@@ -6,7 +6,12 @@ import { HealthController } from './health.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard, PermissionsGuard } from './auth';
-import { SuppliersController, PurchaseInvoicesController, SupplierPaymentsController, PurchaseReturnsController } from './purchases.controller';
+import {
+  SuppliersController,
+  PurchaseInvoicesController,
+  SupplierPaymentsController,
+  PurchaseReturnsController,
+} from './purchases.controller';
 import { PrismaModule } from './prisma.module';
 import { InventoryController } from './inventory.controller';
 import { SalesController } from './sales.controller';
@@ -19,8 +24,7 @@ import { AuditController } from './audit.controller';
 import { SettingsController } from './settings.controller';
 import { CashOpsController } from './cash-ops.controller';
 import { BackupController } from './backup.controller';
-import { LicenseController,
-    MaintenanceController, SupportController } from './license.controller';
+import { LicenseController, SupportController } from './license.controller';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { LicenseWriteInterceptor } from './license.guard';
 
@@ -69,12 +73,12 @@ if (!jwtSecret || WEAK_JWT.has(jwtSecret) || jwtSecret.length < 32) {
     SupportController,
   ],
   providers: [
-      AuthService,
-      AuditService,
-      JwtAuthGuard,
-      PermissionsGuard,
-      { provide: APP_INTERCEPTOR, useClass: LicenseWriteInterceptor },
-      { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
-    ],
+    AuthService,
+    AuditService,
+    JwtAuthGuard,
+    PermissionsGuard,
+    { provide: APP_INTERCEPTOR, useClass: LicenseWriteInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
+  ],
 })
 export class AppModule {}
