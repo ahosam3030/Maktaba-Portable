@@ -2,7 +2,7 @@
   "name": "maktaba-portable",
   "version": "1.5.0",
   "private": true,
-  "description": "Maktaba — تطبيق سطح مكتب لإدارة المكتبة والخدمات",
+  "description": "Maktaba - Library and services management (Portable)",
   "author": "Maktaba",
   "main": "electron/main.js",
   "scripts": {
@@ -50,7 +50,7 @@
       },
       {
         "from": "دليل-الاستخدام.md",
-        "to": "maktaba/دليل-الاستخدام.md"
+        "to": "maktaba/USER-GUIDE.md"
       },
       {
         "from": "backup.bat",
@@ -63,6 +63,12 @@
     ],
     "win": {
       "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
         {
           "target": "nsis",
           "arch": [
@@ -84,14 +90,12 @@
       "shortcutName": "Maktaba",
       "uninstallDisplayName": "Maktaba",
       "installerLanguages": [
-        "ar",
         "en_US"
       ],
-      "language": "1025",
+      "language": "1033",
       "runAfterFinish": true,
       "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico"
+      "uninstallerIcon": "build/icon.ico"
     },
     "icon": "build/icon.png",
     "publish": [
