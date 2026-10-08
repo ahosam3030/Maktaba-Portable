@@ -143,15 +143,52 @@ export class SalesController {
           throw new BadRequestException('الخصم أو المبلغ المدفوع غير صحيح.');
         }
 
+        const totalDue = roundMoney(subtotal - discount);
+        const customerName = body.customerName?.trim() || '';
+        const isCredit =
+          body.isCredit === true ||
+          body.paymentStatus === 'CREDIT' ||
+          (paidAmount + 0.001 < totalDue && !!customerName);
+
+        if (isCredit && !customerName) {
+          throw new BadRequestException('اسم العميل مطلوب عند البيع الآجل.');
+        }
+
+        let customerId: string | null = null;
+        if (customerName) {
+          const existing = await tx.customer.findFirst({
+            where: { organizationId: user.organizationId, name: customerName },
+          });
+          if (existing) {
+            customerId = existing.id;
+          } else if (isCredit) {
+            const created = await tx.customer.create({
+              data: {
+                organizationId: user.organizationId,
+                name: customerName,
+                phone: (body as { customerPhone?: string }).customerPhone?.trim() || null,
+              },
+            });
+            customerId = created.id;
+          }
+        }
+
+        let paymentStatus = 'PAID';
+        if (paidAmount <= 0 && isCredit) paymentStatus = 'CREDIT';
+        else if (paidAmount + 0.001 < totalDue) paymentStatus = 'PARTIAL';
+        else paymentStatus = 'PAID';
+
         const sale = await tx.sale.create({
           data: {
             organizationId: user.organizationId,
             invoiceNumber,
             saleDate: date,
-            customerName: body.customerName?.trim() || null,
+            customerName: customerName || null,
+            customerId,
+            paymentStatus,
             subtotal: new Prisma.Decimal(subtotal),
             discount: new Prisma.Decimal(discount),
-            total: new Prisma.Decimal(subtotal - discount),
+            total: new Prisma.Decimal(totalDue),
             paidAmount: new Prisma.Decimal(paidAmount),
             notes: body.notes?.trim() || null,
             items: {

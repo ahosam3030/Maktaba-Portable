@@ -25,6 +25,8 @@ model Organization {
   purchaseReturns  PurchaseReturn[]
   stockMovements   StockMovement[]
   sales            Sale[]
+  customers        Customer[]
+  customerPayments CustomerPayment[]
   saleReturns      SaleReturn[]
   cashTransactions CashTransaction[]
   services         Service[]
@@ -220,12 +222,47 @@ model StockMovement {
   @@index([organizationId, type])
 }
 
+
+model Customer {
+  id             String            @id @default(cuid())
+  organizationId String
+  name           String
+  phone          String?
+  notes          String?
+  createdAt      DateTime          @default(now())
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sales          Sale[]
+  payments       CustomerPayment[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model CustomerPayment {
+  id             String       @id @default(cuid())
+  organizationId String
+  customerId     String
+  amount         Decimal
+  date           DateTime     @default(now())
+  method         String       @default("CASH")
+  notes          String?
+  saleId         String?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, customerId, date])
+  @@index([customerId])
+}
+
 model Sale {
   id             String       @id @default(cuid())
   organizationId String
   invoiceNumber  String
   saleDate       DateTime     @default(now())
   customerName   String?
+  customerId     String?
+  paymentStatus  String       @default("PAID")
   subtotal       Decimal
   discount       Decimal      @default(0)
   total          Decimal
@@ -233,11 +270,14 @@ model Sale {
   notes          String?
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items          SaleItem[]
   returns        SaleReturn[]
 
   @@unique([organizationId, invoiceNumber])
   @@index([organizationId, saleDate])
+  @@index([organizationId, customerId])
+  @@index([organizationId, paymentStatus])
 }
 
 model SaleItem {

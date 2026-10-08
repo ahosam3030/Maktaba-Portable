@@ -15,6 +15,7 @@ import {
 import { PrismaModule } from './prisma.module';
 import { InventoryController } from './inventory.controller';
 import { SalesController } from './sales.controller';
+import { CustomersController } from './customers.controller';
 import { AccountingController } from './accounting.controller';
 import { UsersController } from './users.controller';
 import { ReportsController } from './reports.controller';
@@ -61,6 +62,7 @@ if (!jwtSecret || WEAK_JWT.has(jwtSecret) || jwtSecret.length < 32) {
     PurchaseReturnsController,
     InventoryController,
     SalesController,
+    CustomersController,
     AccountingController,
     ServicesController,
     ServiceReceiptsController,

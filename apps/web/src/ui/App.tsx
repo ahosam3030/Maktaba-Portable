@@ -18,6 +18,7 @@ import {
 import { Purchases } from './Purchases';
 import { Inventory } from './Inventory';
 import { Sales } from './Sales';
+import { Credit } from './Credit';
 import { Printing } from './Printing';
 import { Accounting } from './Accounting';
 import { Settings } from './Settings';
@@ -60,7 +61,7 @@ export function App() {
   const [sessionUser, setSessionUser] = useState(getStoredUser());
   const [sessionOrg, setSessionOrg] = useState(getStoredOrganization());
   const [activeSection, setActiveSection] = useState<
-    'dashboard' | 'purchases' | 'inventory' | 'sales' | 'printing' | 'accounting' | 'reports' | 'settings' | 'labels' | 'dayclose'
+    'dashboard' | 'purchases' | 'inventory' | 'sales' | 'credit' | 'printing' | 'accounting' | 'reports' | 'settings' | 'labels' | 'dayclose'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
@@ -490,6 +491,9 @@ useEffect(() => {
             <button type="button" tabIndex={-1} className={activeSection === 'sales' ? 'active' : ''} onClick={() => setActiveSection('sales')}>
               <SectionIcon name="sales" className="nav-icon" /><span>المبيعات</span>
             </button>
+            <button type="button" tabIndex={-1} className={activeSection === 'credit' ? 'active' : ''} onClick={() => setActiveSection('credit')}>
+              <SectionIcon name="sales" className="nav-icon" /><span>الآجل</span>
+            </button>
           )}
           {hasPermission(sessionUser, 'inventory') && (
             <button type="button" tabIndex={-1} className={activeSection === 'inventory' ? 'active' : ''} onClick={() => setActiveSection('inventory')}>
@@ -587,6 +591,8 @@ useEffect(() => {
                 ? 'المشتريات'
                 : activeSection === 'sales'
                   ? 'المبيعات'
+                  : activeSection === 'credit'
+                    ? 'الآجل'
                   : activeSection === 'inventory'
                     ? 'المخزون'
                     : activeSection === 'accounting'
@@ -712,6 +718,8 @@ useEffect(() => {
           <Inventory />
         ) : activeSection === 'sales' && hasPermission(sessionUser, 'sales') ? (
           <Sales />
+        ) : activeSection === 'credit' && hasPermission(sessionUser, 'sales') ? (
+          <Credit />
         ) : activeSection === 'printing' && hasPermission(sessionUser, 'printing') ? (
           <Printing />
         ) : activeSection === 'accounting' && hasPermission(sessionUser, 'accounting') ? (

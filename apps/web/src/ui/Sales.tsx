@@ -90,6 +90,7 @@ export function Sales() {
   const [invoiceNumber, setInvoiceNumber] = useState('1');
   const [saleDate, setSaleDate] = useState(new Date().toISOString().slice(0, 10));
   const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [discount, setDiscount] = useState('0');
   const [paidAmount, setPaidAmount] = useState('');
   const [saleSearch, setSaleSearch] = useState('');
@@ -330,6 +331,7 @@ export function Sales() {
   function resetForm(nextSales?: Sale[]) {
     setCart([emptyCartLine(), emptyCartLine(), emptyCartLine()]);
     setCustomerName('');
+    setCustomerPhone('');
     setDiscount('0');
     setPaidAmount('');
     setSaleDate(new Date().toISOString().slice(0, 10));
@@ -759,7 +761,7 @@ export function Sales() {
     w.document.close();
   }
 
-  async function saveSale(andPrint = false) {
+  async function saveSale(andPrint = false, asCredit = false) {
     // اربط البضاعة إن أمكن؛ وإلا اعتبر البند خدمة حرّة
     const resolvedCart = cart.map((line) => {
       if (line.productId || !line.query?.trim()) return line;
@@ -809,7 +811,14 @@ export function Sales() {
     const disc = Math.max(0, Number(discount) || 0);
     if (disc > computedSubtotal) { setNotice('الخصم لا يمكن أن يتجاوز إجمالي الفاتورة.'); return; }
     const net = Math.max(0, computedSubtotal - disc);
-    const paid = paidAmount.trim() === '' ? net : Number(paidAmount);
+    let paid = paidAmount.trim() === '' ? net : Number(paidAmount);
+    if (asCredit) {
+      if (!customerName.trim()) {
+        setNotice('اسم العميل مطلوب عند البيع الآجل.');
+        return;
+      }
+      if (paidAmount.trim() === '') paid = 0;
+    }
     if (!Number.isFinite(paid) || paid < 0 || paid > net) { setNotice('المبلغ المدفوع يجب أن يكون بين صفر وإجمالي الفاتورة.'); return; }
     setSaving(true); setNotice('');
     try {
@@ -821,6 +830,8 @@ export function Sales() {
             invoiceNumber: inv,
             saleDate: saleDate || undefined,
             customerName: customerName.trim() || undefined,
+            customerPhone: customerPhone.trim() || undefined,
+            isCredit: asCredit || paid < net,
             discount: disc,
             paidAmount: paid,
             items: lines.map((line) => ({
@@ -834,7 +845,7 @@ export function Sales() {
         },
         { queueLabel: 'حفظ فاتورة بيع' },
       );
-      setNotice(`تم حفظ فاتورة البيع ${sale.invoiceNumber}` + (paid > 0 ? ' وتسجيل التحصيل في الخزينة.' : '.'));
+      setNotice(`تم حفظ فاتورة البيع ${sale.invoiceNumber}` + (asCredit || paid < net ? ' (آجل) — راجع تبويب الآجل.' : paid > 0 ? ' وتسجيل التحصيل في الخزينة.' : '.'));
       await refresh();
       if (andPrint) printSale(sale);
     } catch (e) { setNotice(e instanceof Error ? e.message : 'تعذر حفظ فاتورة البيع.'); }
@@ -1210,8 +1221,14 @@ function printDraft() {
             <label>المدفوع (ج)
               <input type="number" min="0" step="0.01" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} placeholder="فارغ = كامل المبلغ" />
             </label>
+            <label>هاتف (آجل)
+              <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="اختياري" dir="ltr" />
+            </label>
             <button className="secondary-btn small" type="button" style={{ alignSelf: 'end' }} onClick={() => setPaidAmount(String(total))}>
               دفع كامل
+            </button>
+            <button className="secondary-btn small" type="button" style={{ alignSelf: 'end' }} onClick={() => setPaidAmount('0')}>
+              آجل كامل
             </button>
           </div>
           <div className="pur-footer-summary">
@@ -1230,11 +1247,17 @@ function printDraft() {
               </div>
             </div>
             <div className="pur-footer-actions">
-              <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(false)}>
-                {saving ? 'جارٍ الحفظ...' : 'حفظ الفاتورة'}
+              <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(false, false)}>
+                {saving ? 'جارٍ الحفظ...' : 'حفظ (نقدي)'}
               </button>
-              <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(true)}>
+              <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(false, true)}>
+                حفظ آجل
+              </button>
+              <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(true, false)}>
                 حفظ وطباعة
+              </button>
+              <button className="secondary-btn" type="button" disabled={saving} onClick={() => void saveSale(true, true)}>
+                آجل وطباعة
               </button>
               <button className="secondary-btn" type="button" onClick={printDraft}>طباعة مسودة</button>
               <button className="secondary-btn" type="button" onClick={() => resetForm()}>فاتورة جديدة</button>

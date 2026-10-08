@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
@@ -47,6 +48,20 @@ export class CreateSaleDto {
   @IsString()
   @MaxLength(200)
   customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  customerPhone?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isCredit?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  paymentStatus?: string;
 
   @IsOptional()
   @IsNumber()
