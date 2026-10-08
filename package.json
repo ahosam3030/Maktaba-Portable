@@ -23,9 +23,7 @@
     },
     "files": [
       "electron/**/*",
-      "package.json",
-      "build/icon.ico",
-      "build/icon.png"
+      "package.json"
     ],
     "extraResources": [
       {
@@ -57,8 +55,8 @@
         "to": "maktaba/backup.bat"
       },
       {
-        "from": "build/icon.ico",
-        "to": "icon.ico"
+        "from": "README.md",
+        "to": "maktaba/README.md"
       }
     ],
     "win": {
@@ -68,16 +66,9 @@
           "arch": [
             "x64"
           ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
         }
       ],
       "artifactName": "Maktaba-Install-${version}.${ext}",
-      "icon": "build/icon.png",
       "signAndEditExecutable": false
     },
     "nsis": {
@@ -96,7 +87,6 @@
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false
     },
-    "icon": "build/icon.png",
     "publish": [
       {
         "provider": "github",

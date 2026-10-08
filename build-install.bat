@@ -1,14 +1,14 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title Maktaba - بناء Install.exe
+title Maktaba - Install.exe
 echo ========================================
-echo   بناء ملف التثبيت Install.exe
+echo   بناء Maktaba-Install.exe
 echo ========================================
 echo.
 
-call preflight-check.bat
-if errorlevel 1 ( pause & exit /b 1 )
+git pull origin main 2>nul
+if exist "C:\Program Files\Git\cmd\git.exe" "C:\Program Files\Git\cmd\git.exe" pull origin main
 
 call build-desktop.bat
 if errorlevel 1 exit /b 1
@@ -17,33 +17,36 @@ call npm install
 if errorlevel 1 exit /b 1
 
 if not exist "data\" mkdir data
-if not exist "data\.gitkeep" echo. > data\.gitkeep
 
 echo.
-echo بناء المثبت NSIS (Install)...
-call npx electron-builder --win nsis --x64
+echo حذف ايقونة قديمة تسبب فشل NSIS (اختياري)...
+if exist "build\icon.ico.bad" del "build\icon.ico.bad"
+if exist "build\icon.ico" (
+  ren "build\icon.ico" "icon.ico.bak" 2>nul
+)
+
+echo.
+echo بناء المثبت بدون ايقونة مخصصة...
+set CSC_IDENTITY_AUTO_DISCOVERY=false
+call npx electron-builder --win nsis --x64 -c.win.icon=null
+if errorlevel 1 (
+  echo محاولة ثانية...
+  call npx electron-builder --win nsis --x64
+)
 if errorlevel 1 (
   echo.
-  echo فشل NSIS — بناء بديل: مجلد + سكربت تثبيت بسيط
+  echo NSIS فشل. بناء win-unpacked + مثبت بسيط...
   call npx electron-builder --win dir --x64
-  if errorlevel 1 (
-    echo فشل البناء بالكامل
-    pause
-    exit /b 1
-  )
-  echo.
-  echo تم: release\win-unpacked\Maktaba.exe
-  echo لعمل مثبت بسيط شغّل: create-simple-installer.bat
+  call create-simple-installer.bat
   pause
   exit /b 0
 )
 
 echo.
 echo ========== نجح ==========
-echo المثبت:
 dir /b release\Maktaba-Install-*.exe 2>nul
 dir /b release\*.exe 2>nul
 echo.
-echo الملف في مجلد release\
-echo ثبّته على جهازك أو أرسله للعميل.
+echo المثبت في مجلد release\
+if exist "build\icon.ico.bak" ren "build\icon.ico.bak" "icon.ico"
 pause
