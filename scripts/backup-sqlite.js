@@ -40,6 +40,16 @@ function tryVacuumInto() {
 
 if (tryVacuumInto()) {
   console.log('VACUUM INTO OK');
+  try {
+    const Database = require('better-sqlite3');
+    const chk = new Database(dest, { readonly: true, fileMustExist: true });
+    const row = chk.prepare('PRAGMA integrity_check').get();
+    chk.close();
+    const ok = row && String(Object.values(row)[0]).toLowerCase() === 'ok';
+    console.log(ok ? 'integrity_check OK' : 'integrity_check WARN: ' + JSON.stringify(row));
+  } catch (e) {
+    console.warn('integrity_check skipped', e.message || e);
+  }
   process.exit(0);
 }
 

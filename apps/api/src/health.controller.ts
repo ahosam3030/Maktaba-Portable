@@ -1,9 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
+import { APP_VERSION } from './version';
 
 @Controller('health')
 export class HealthController {
   @Get()
   health() {
-    return { status: 'ok', service: 'library-erp-api', version: '0.1.0' };
+    return { status: 'ok', service: 'maktaba-portable-api', version: APP_VERSION };
   }
 }

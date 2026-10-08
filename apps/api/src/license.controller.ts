@@ -11,9 +11,15 @@ function licenseSecret() {
 function validateSerial(serial: string): { maxDevices: number; ok: boolean; reason?: string } {
   const signed = verifySignedLicense(serial);
   if (signed.ok) return { maxDevices: signed.maxDevices, ok: true };
-  const legacy = verifyLegacyHmac(serial, licenseSecret());
-  if (legacy.ok) return { maxDevices: legacy.maxDevices, ok: true };
-  return { maxDevices: 0, ok: false, reason: signed.reason || 'مفتاح غير صالح' };
+  if (process.env.ALLOW_LEGACY_LICENSE === '1') {
+    const legacy = verifyLegacyHmac(serial, licenseSecret());
+    if (legacy.ok) return { maxDevices: legacy.maxDevices, ok: true };
+  }
+  return {
+    maxDevices: 0,
+    ok: false,
+    reason: signed.reason || 'مفتاح غير صالح. استخدم مفتاح MAK2 الصادر من البائع.',
+  };
 }
 
 @Controller('license')
@@ -57,7 +63,7 @@ export class LicenseController {
       trialExpired,
       daysLeft,
       writeAllowed: rows.length > 0 || trialActive,
-      scheme: 'Ed25519 (MAK2) + legacy HMAC',
+      scheme: 'Ed25519 (MAK2)',
     };
   }
 

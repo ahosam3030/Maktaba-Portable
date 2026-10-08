@@ -11,7 +11,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "seed": "node prisma/seed.js",
-    "test": "node --import tsx --test src/stock.util.test.ts src/money.util.test.ts",
+    "test": "node --import tsx --test src/stock.util.test.ts src/money.util.test.ts src/accounting-flow.util.test.ts",
     "test:stock": "node --import tsx --test src/stock.util.test.ts",
     "test:unit": "node --import tsx --test src/stock.util.test.ts"
   },

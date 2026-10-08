@@ -242,19 +242,43 @@ function ensureDatabase(env) {
     return;
   }
   const migDir = path.join(API_DIR, 'prisma', 'migrations');
-  // فقط لو فيه migration.sql فعلي — lock.toml لوحده لا يكفي ويترك القاعدة فارغة
+  const dbFile = (env.DATABASE_URL || '').replace(/^file:/, '');
+  const dbExists = dbFile && fs.existsSync(dbFile) && fs.statSync(dbFile).size > 0;
+
   if (hasRealMigrations(migDir)) {
-    const mig = spawnAsNodeSync([prismaCli, 'migrate', 'deploy'], {
+    let mig = spawnAsNodeSync([prismaCli, 'migrate', 'deploy'], {
       cwd: API_DIR,
       env,
       timeout: 120000,
     });
     if (mig.status === 0) return;
-    console.warn('migrate deploy failed, fallback db push', (mig.stderr || '').toString().slice(0, 400));
-  } else {
-    console.log('No real Prisma migrations found — using db push to create tables');
+
+    const initName = '20261008000000_init';
+    const resolve = spawnAsNodeSync(
+      [prismaCli, 'migrate', 'resolve', '--applied', initName],
+      { cwd: API_DIR, env, timeout: 60000 },
+    );
+    if (resolve.status === 0) {
+      mig = spawnAsNodeSync([prismaCli, 'migrate', 'deploy'], {
+        cwd: API_DIR,
+        env,
+        timeout: 120000,
+      });
+      if (mig.status === 0) return;
+    }
+    console.warn(
+      'migrate deploy failed',
+      ((mig.stderr || mig.stdout || '').toString() || '').slice(0, 500),
+    );
+    if (dbExists) {
+      throw new Error(
+        'تعذر تطبيق تحديث قاعدة البيانات. أنشئ نسخة احتياطية ثم تواصل مع الدعم.',
+      );
+    }
   }
-  const r = spawnAsNodeSync([prismaCli, 'db', 'push', '--skip-generate', '--accept-data-loss'], {
+
+  console.log('Creating schema (db push, new database only)');
+  const r = spawnAsNodeSync([prismaCli, 'db', 'push', '--skip-generate'], {
     cwd: API_DIR,
     env,
     timeout: 120000,
@@ -262,7 +286,7 @@ function ensureDatabase(env) {
   if (r.status !== 0) {
     const msg = (r.stderr || r.stdout || '').toString().slice(0, 800);
     console.error('prisma db push failed', msg);
-    throw new Error('تعذر تجهيز قاعدة البيانات. ' + msg);
+    throw new Error('تعذر تجهيز قاعدة البيانات. أعد تثبيت البرنامج أو تواصل مع الدعم.');
   }
 }
 
@@ -364,7 +388,7 @@ async function startApi(cfg) {
       } catch (_) {}
       dialog.showErrorBox(
         'Maktaba',
-        `توقف الخادم المحلي (رمز ${code}). أعد تشغيل التطبيق.\\nالتفاصيل: ${path.join(DATA_DIR, 'api-error.log')}`,
+        `حدث خطأ في تشغيل البرنامج (رمز ${code}). أعد تشغيل التطبيق.\\nالتفاصيل: ${path.join(DATA_DIR, 'api-error.log')}`,
       );
     }
   });
@@ -507,7 +531,7 @@ function buildMenu() {
               type: 'info',
               title: 'Maktaba',
               message: 'نظام إدارة المكتبة والخدمات',
-              detail: 'إصدار Portable 1.3.1 — سطح مكتب + SQLite محلي',
+              detail: 'إصدار Portable 1.4.0 — سطح مكتب + SQLite محلي',
             }),
         },
       ],
@@ -540,7 +564,7 @@ function createWindow() {
     height: 840,
     minWidth: 960,
     minHeight: 640,
-    title: 'مكتبة — نظام إدارة المركز',
+    title: 'Maktaba 1.4.0',
     backgroundColor: '#0f766e',
     autoHideMenuBar: false,
     icon: resolveAppIcon(),

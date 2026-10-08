@@ -1,3 +1,4 @@
+import { MaintenanceController } from './maintenance.controller';
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { APP_INTERCEPTOR } from '@nestjs/core';
@@ -18,7 +19,8 @@ import { AuditController } from './audit.controller';
 import { SettingsController } from './settings.controller';
 import { CashOpsController } from './cash-ops.controller';
 import { BackupController } from './backup.controller';
-import { LicenseController, SupportController } from './license.controller';
+import { LicenseController,
+    MaintenanceController, SupportController } from './license.controller';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
 import { LicenseWriteInterceptor } from './license.guard';
 
@@ -63,6 +65,7 @@ if (!jwtSecret || WEAK_JWT.has(jwtSecret) || jwtSecret.length < 32) {
     CashOpsController,
     BackupController,
     LicenseController,
+    MaintenanceController,
     SupportController,
   ],
   providers: [

@@ -76,7 +76,7 @@ async function main() {
   const email = (process.env.SEED_OWNER_EMAIL || 'admin@maktaba.local').toLowerCase();
   const fullName = process.env.SEED_OWNER_NAME || 'المالك';
   const orgName = process.env.SEED_ORG_NAME || 'منشأتي';
-  const slug = (process.env.SEED_ORG_SLUG || 'al-mohandes').toLowerCase();
+  const slug = (process.env.SEED_ORG_SLUG || 'library').toLowerCase();
   const phone = process.env.SEED_ORG_PHONE || '';
 
   const passwordHash = hashPassword(password);
