@@ -21,7 +21,7 @@ function escapeHtml(s: string) {
 }
 
 /** مقاسات ملصق شائعة (مم) — للطباعة الحرارية أو الورق */
-type LabelSizeId = 'a4-auto' | '40x30' | '50x30' | '50x40' | '60x40' | '70x50' | '80x50' | 'custom';
+type LabelSizeId = 'a4-auto' | '40x20' | '40x30' | '50x25' | '50x30' | '50x40' | '60x40' | '70x50' | '80x50' | 'custom';
 
 type LabelSize = {
   id: LabelSizeId;
@@ -34,14 +34,16 @@ type LabelSize = {
 };
 
 const LABEL_SIZES: LabelSize[] = [
-  { id: 'a4-auto', label: 'ورقة A4 (تلقائي)', widthMm: 0, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
-  { id: '40x30', label: '40×30 مم (رف صغير)', widthMm: 40, heightMm: 30, defaultCols: 4, pageMode: 'sheet' },
-  { id: '50x30', label: '50×30 مم (الأكثر شيوعًا)', widthMm: 50, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
-  { id: '50x40', label: '50×40 مم', widthMm: 50, heightMm: 40, defaultCols: 3, pageMode: 'sheet' },
-  { id: '60x40', label: '60×40 مم', widthMm: 60, heightMm: 40, defaultCols: 3, pageMode: 'sheet' },
-  { id: '70x50', label: '70×50 مم', widthMm: 70, heightMm: 50, defaultCols: 2, pageMode: 'sheet' },
-  { id: '80x50', label: '80×50 مم (رول حراري)', widthMm: 80, heightMm: 50, defaultCols: 1, pageMode: 'roll' },
-  { id: 'custom', label: 'مخصص…', widthMm: 50, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
+  { id: 'a4-auto', label: 'ورقة A4 (شبكة)', widthMm: 0, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
+  { id: '40x20', label: '40×20 مم — رول', widthMm: 40, heightMm: 20, defaultCols: 1, pageMode: 'roll' },
+  { id: '40x30', label: '40×30 مم — رول', widthMm: 40, heightMm: 30, defaultCols: 1, pageMode: 'roll' },
+  { id: '50x25', label: '50×25 مم — رول', widthMm: 50, heightMm: 25, defaultCols: 1, pageMode: 'roll' },
+  { id: '50x30', label: '50×30 مم — رول (شائع)', widthMm: 50, heightMm: 30, defaultCols: 1, pageMode: 'roll' },
+  { id: '50x40', label: '50×40 مم — رول', widthMm: 50, heightMm: 40, defaultCols: 1, pageMode: 'roll' },
+  { id: '60x40', label: '60×40 مم — رول', widthMm: 60, heightMm: 40, defaultCols: 1, pageMode: 'roll' },
+  { id: '70x50', label: '70×50 مم', widthMm: 70, heightMm: 50, defaultCols: 1, pageMode: 'roll' },
+  { id: '80x50', label: '80×50 مم — رول عريض', widthMm: 80, heightMm: 50, defaultCols: 1, pageMode: 'roll' },
+  { id: 'custom', label: 'مخصص (مم)…', widthMm: 50, heightMm: 30, defaultCols: 1, pageMode: 'roll' },
 ];
 
 const SIZE_STORAGE_KEY = 'maktaba.labelSize.v1';
@@ -213,53 +215,74 @@ export function Labels() {
       setNotice('اسمح بالنوافذ المنبثقة للطباعة.');
       return;
     }
-    const gapMm = isFixedSize ? 2 : 4;
-    const padMm = isFixedSize ? 1.5 : 2.5;
-    const pageMargin = isRoll ? '2mm' : '6mm';
-    const bcH = Math.max(22, Math.min(48, Math.round(labelH * 0.9)));
-    const nameFs = labelH <= 30 ? 10 : labelH <= 40 ? 11 : 12;
-    const priceFs = labelH <= 30 ? 11 : 13;
-    const storeFs = labelH <= 30 ? 8 : 9;
-    const sheetCols = isRoll ? 1 : cols;
-    const labelSizeCss = isFixedSize
-      ? `width: ${labelW}mm; height: ${labelH}mm; max-width: ${labelW}mm; max-height: ${labelH}mm; box-sizing: border-box; overflow: hidden;`
-      : `min-height: ${labelH}mm;`;
-    const sheetCss = isRoll
-      ? `display: flex; flex-direction: column; align-items: center; gap: ${gapMm}mm; padding: 2mm;`
-      : isFixedSize
-        ? `display: flex; flex-wrap: wrap; gap: ${gapMm}mm; padding: 4mm; justify-content: flex-start;`
-        : `display: grid; grid-template-columns: repeat(${sheetCols}, 1fr); gap: ${gapMm}mm; padding: 4mm;`;
+    // رول حراري: كل ملصق = صفحة واحدة المقاس = عرض×ارتفاع الملصق بالملم
+    const thermal = isRoll || (isFixedSize && cols === 1);
+    const padMm = thermal ? (labelH <= 25 ? 0.8 : 1.2) : 2;
+    const bcH = thermal
+      ? Math.max(14, Math.min(36, Math.round(labelH * 0.55)))
+      : Math.max(22, Math.min(48, Math.round(labelH * 0.7)));
+    const nameFs = labelH <= 20 ? 8 : labelH <= 25 ? 9 : labelH <= 30 ? 10 : 11;
+    const priceFs = labelH <= 20 ? 9 : labelH <= 30 ? 11 : 13;
+    const storeFs = labelH <= 25 ? 7 : 8;
+    const codeFs = labelH <= 25 ? 6 : 7;
+    const bcBarWidth = labelW <= 40 ? 1.0 : labelW <= 50 ? 1.15 : 1.3;
+
+    let pageCss: string;
+    let sheetCss: string;
+    let labelCss: string;
+
+    if (thermal && isFixedSize) {
+      // صفحة = ملصق واحد تمامًا (مهم للطابعة الحرارية)
+      pageCss = `size: ${labelW}mm ${labelH}mm; margin: 0;`;
+      sheetCss = 'margin:0;padding:0;width:100%;';
+      labelCss = `
+        width: ${labelW}mm; height: ${labelH}mm;
+        max-width: ${labelW}mm; max-height: ${labelH}mm;
+        box-sizing: border-box; overflow: hidden;
+        margin: 0; padding: ${padMm}mm;
+        page-break-after: always; page-break-inside: avoid;
+        border: none; border-radius: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 0;
+      `;
+    } else if (isFixedSize) {
+      pageCss = 'margin: 5mm;';
+      sheetCss = `display:flex;flex-wrap:wrap;gap:2mm;padding:2mm;`;
+      labelCss = `
+        width: ${labelW}mm; height: ${labelH}mm; box-sizing: border-box; overflow: hidden;
+        border: 0.3mm solid #ccc; padding: ${padMm}mm;
+        page-break-inside: avoid;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+      `;
+    } else {
+      pageCss = 'margin: 6mm;';
+      sheetCss = `display:grid;grid-template-columns:repeat(${cols},1fr);gap:4mm;padding:4mm;`;
+      labelCss = `
+        min-height: 28mm; border: 1px dashed #94a3b8; border-radius: 3px; padding: 2mm;
+        page-break-inside: avoid;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+      `;
+    }
 
     w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
-<title>ملصقات باركود ${isFixedSize ? labelW + '×' + labelH + ' مم' : 'A4'}</title>
+<title>ملصقات ${isFixedSize ? labelW + 'x' + labelH + 'mm' : 'A4'}</title>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
 <style>
-  @page { margin: ${pageMargin}; ${isRoll && isFixedSize ? `size: ${labelW}mm ${labelH}mm;` : ''} }
-  body { font-family: Tahoma, Arial, sans-serif; margin: 0; background: #fff; }
+  @page { ${pageCss} }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; width: 100%; background: #fff; }
+  body { font-family: Arial, Tahoma, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .sheet { ${sheetCss} }
-  .label {
-    border: 1px dashed #94a3b8;
-    border-radius: 3px;
-    padding: ${padMm}mm 1.5mm;
-    text-align: center;
-    page-break-inside: avoid;
-    ${isRoll ? 'page-break-after: always;' : ''}
-    ${labelSizeCss}
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5px;
-  }
-  .store { font-size: ${storeFs}px; font-weight: 800; color: #0f766e; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .name { font-size: ${nameFs}px; font-weight: 700; line-height: 1.15; max-width: 100%; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .price { font-size: ${priceFs}px; font-weight: 800; color: #0c4a6e; margin: 0; }
-  .code { font-size: 8px; letter-spacing: 0.03em; color: #334155; }
-  .phone { font-size: 7px; color: #64748b; }
-  .extra { font-size: 7px; color: #475569; line-height: 1.15; max-width: 100%; overflow: hidden; }
-  svg.bc { max-width: 96%; height: ${bcH}px; }
+  .label { ${labelCss} }
+  .store { font-size: ${storeFs}px; font-weight: 700; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .name { font-size: ${nameFs}px; font-weight: 700; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .price { font-size: ${priceFs}px; font-weight: 800; line-height: 1.1; margin: 0; }
+  .code { font-size: ${codeFs}px; letter-spacing: 0.02em; line-height: 1.1; direction: ltr; unicode-bidi: embed; }
+  .phone, .extra { font-size: ${codeFs}px; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; }
+  svg.bc { width: 92%; max-width: 92%; height: ${bcH}px; display: block; margin: 1px auto; }
   @media print {
-    .label { border-color: #cbd5e1; }
+    .label { border: none !important; }
+    .label:last-child { page-break-after: auto; }
   }
 </style></head><body>
 <div class="sheet">${labelsHtml}</div>
@@ -268,16 +291,33 @@ export function Labels() {
     var code = el.getAttribute('data-barcode') || '';
     if (!code) return;
     try {
-      JsBarcode(el, code, { format: 'CODE128', width: ${labelH <= 30 ? 1.2 : 1.4}, height: ${bcH}, displayValue: false, margin: 0 });
-    } catch (e) {}
+      JsBarcode(el, code, {
+        format: 'CODE128',
+        width: ${bcBarWidth},
+        height: ${bcH},
+        displayValue: false,
+        margin: 0,
+        background: '#ffffff',
+        lineColor: '#000000'
+      });
+    } catch (e) {
+      el.outerHTML = '<div class="code" dir="ltr">' + code + '</div>';
+    }
   });
-  window.onload = function() { setTimeout(function(){ window.print(); }, 300); };
+  window.onload = function() {
+    setTimeout(function() { window.print(); }, 400);
+  };
 <\/script>
 </body></html>`);
     w.document.close();
     const totalCopies = items.reduce((s, i) => s + i.copies, 0);
     const sizeNote = isFixedSize ? ` — مقاس ${labelW}×${labelH} مم` : ' — ورقة A4';
-    setNotice(`جاهز للطباعة: ${totalCopies} ملصق${sizeNote}. في نافذة الطباعة اختر المقاس/الورقة المناسبة.`);
+    setNotice(
+      `جاهز: ${totalCopies} ملصق${sizeNote}.` +
+        (thermal
+          ? ' في نافذة الطباعة: اختر طابعة الملصقات + مقاس الورق بنفس الملصق + هوامش صفر + بدون ملاءمة للصفحة.'
+          : ' اختر A4 إن لزم.'),
+    );
   }
 
   return (
@@ -286,7 +326,7 @@ export function Labels() {
         <div>
           <h2>ملصقات الباركود</h2>
           <p className="muted-sm">
-            اختر مقاس الملصق والأصناف ثم اطبع (CODE128). المقاس يُحفظ على هذا الجهاز.
+            للرول الحراري: اختر مقاس ملصقك (مثل 50×30) ثم اطبع. في الطباعة عطّل «ملاءمة للصفحة» وحدد مقاس الورق = الملصق.
             {products.length > 0 && (
               <>
                 {' '}
