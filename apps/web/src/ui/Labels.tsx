@@ -21,7 +21,7 @@ function escapeHtml(s: string) {
 }
 
 /** مقاسات ملصق شائعة (مم) — للطباعة الحرارية أو الورق */
-type LabelSizeId = 'a4-auto' | '40x20' | '40x30' | '50x25' | '50x30' | '50x40' | '60x40' | '70x50' | '80x50' | 'custom';
+type LabelSizeId = 'a4-auto' | '30x10' | '40x20' | '40x30' | '50x25' | '50x30' | '50x40' | '60x40' | '70x50' | '80x50' | 'custom';
 
 type LabelSize = {
   id: LabelSizeId;
@@ -35,6 +35,7 @@ type LabelSize = {
 
 const LABEL_SIZES: LabelSize[] = [
   { id: 'a4-auto', label: 'ورقة A4 (شبكة)', widthMm: 0, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
+  { id: '30x10', label: '30×10 مم (3×1 سم) — رولك', widthMm: 30, heightMm: 10, defaultCols: 1, pageMode: 'roll' },
   { id: '40x20', label: '40×20 مم — رول', widthMm: 40, heightMm: 20, defaultCols: 1, pageMode: 'roll' },
   { id: '40x30', label: '40×30 مم — رول', widthMm: 40, heightMm: 30, defaultCols: 1, pageMode: 'roll' },
   { id: '50x25', label: '50×25 مم — رول', widthMm: 50, heightMm: 25, defaultCols: 1, pageMode: 'roll' },
@@ -51,7 +52,7 @@ const SIZE_STORAGE_KEY = 'maktaba.labelSize.v1';
 function loadSavedSize(): { id: LabelSizeId; w: number; h: number; cols: number } {
   try {
     const raw = localStorage.getItem(SIZE_STORAGE_KEY);
-    if (!raw) return { id: '50x30', w: 50, h: 30, cols: 3 };
+    if (!raw) return { id: '30x10', w: 30, h: 10, cols: 1 };
     const j = JSON.parse(raw) as { id?: LabelSizeId; w?: number; h?: number; cols?: number };
     const preset = LABEL_SIZES.find((s) => s.id === j.id) || LABEL_SIZES[2];
     return {
@@ -61,7 +62,7 @@ function loadSavedSize(): { id: LabelSizeId; w: number; h: number; cols: number 
       cols: Number(j.cols) || preset.defaultCols,
     };
   } catch {
-    return { id: '50x30', w: 50, h: 30, cols: 3 };
+    return { id: '30x10', w: 30, h: 10, cols: 1 };
   }
 }
 
@@ -197,14 +198,16 @@ export function Labels() {
       .flatMap((p) =>
         Array.from({ length: p.copies }, () => {
           const price = Number(p.salePrice) || 0;
+          const tinyLabel = labelH <= 12;
+          const nameShort = tinyLabel && p.name.length > 12 ? p.name.slice(0, 11) + '…' : p.name;
           return `<div class="label">
-  ${showStoreName && store ? `<div class="store">${escapeHtml(store)}</div>` : ''}
-  ${showName ? `<div class="name">${escapeHtml(p.name)}</div>` : ''}
-  ${showPrice ? `<div class="price">${price.toFixed(2)} ج.م</div>` : ''}
+  ${showStoreName && store && !tinyLabel ? `<div class="store">${escapeHtml(store)}</div>` : ''}
+  ${showName ? `<div class="name">${escapeHtml(nameShort)}</div>` : ''}
+  ${showPrice ? `<div class="price">${price.toFixed(2)}</div>` : ''}
   <svg class="bc" data-barcode="${escapeHtml(String(p.barcode))}"></svg>
-  ${showBarcodeText ? `<div class="code" dir="ltr">${escapeHtml(String(p.barcode))}</div>` : ''}
-  ${showPhone && phoneLine ? `<div class="phone" dir="ltr">${escapeHtml(phoneLine)}</div>` : ''}
-  ${extra ? `<div class="extra">${escapeHtml(extra)}</div>` : ''}
+  ${showBarcodeText && !tinyLabel ? `<div class="code" dir="ltr">${escapeHtml(String(p.barcode))}</div>` : ''}
+  ${showPhone && phoneLine && !tinyLabel ? `<div class="phone" dir="ltr">${escapeHtml(phoneLine)}</div>` : ''}
+  ${extra && !tinyLabel ? `<div class="extra">${escapeHtml(extra)}</div>` : ''}
 </div>`;
         }),
       )
@@ -218,14 +221,15 @@ export function Labels() {
     // رول حراري: كل ملصق = صفحة واحدة المقاس = عرض×ارتفاع الملصق بالملم
     const thermal = isRoll || (isFixedSize && cols === 1);
     const padMm = thermal ? (labelH <= 25 ? 0.8 : 1.2) : 2;
+    const tiny = labelH <= 12;
     const bcH = thermal
-      ? Math.max(14, Math.min(36, Math.round(labelH * 0.55)))
+      ? (tiny ? Math.max(8, Math.round(labelH * 0.45)) : Math.max(14, Math.min(36, Math.round(labelH * 0.55))))
       : Math.max(22, Math.min(48, Math.round(labelH * 0.7)));
-    const nameFs = labelH <= 20 ? 8 : labelH <= 25 ? 9 : labelH <= 30 ? 10 : 11;
-    const priceFs = labelH <= 20 ? 9 : labelH <= 30 ? 11 : 13;
-    const storeFs = labelH <= 25 ? 7 : 8;
-    const codeFs = labelH <= 25 ? 6 : 7;
-    const bcBarWidth = labelW <= 40 ? 1.0 : labelW <= 50 ? 1.15 : 1.3;
+    const nameFs = tiny ? 6 : labelH <= 20 ? 8 : labelH <= 25 ? 9 : labelH <= 30 ? 10 : 11;
+    const priceFs = tiny ? 7 : labelH <= 20 ? 9 : labelH <= 30 ? 11 : 13;
+    const storeFs = tiny ? 5 : labelH <= 25 ? 7 : 8;
+    const codeFs = tiny ? 5 : labelH <= 25 ? 6 : 7;
+    const bcBarWidth = tiny ? 0.9 : labelW <= 40 ? 1.0 : labelW <= 50 ? 1.15 : 1.3;
 
     let pageCss: string;
     let sheetCss: string;
