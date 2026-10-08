@@ -359,7 +359,7 @@ useEffect(() => {
               <span>نظام إدارة مراكز الخدمات والمكتبات</span>
             </div>
           </div>
-          <span className="product-version">Portable v1.3.1</span>
+          <span className="product-version">Portable v1.5.0</span>
         </header>
         <div className="product-login-body">
           <section className="product-login-pitch">

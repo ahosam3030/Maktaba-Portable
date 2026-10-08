@@ -1,32 +1,46 @@
-# Maktaba Portable — Release 1.5.0
+# Maktaba Portable — Release **1.5.0**
 
-## ماذا في هذه النسخة؟
-- تطبيق ويندوز (Electron) + SQLite محلي
-- مبيعات، مشتريات، مخزون، خدمات، خزينة، تقارير
-- ترخيص MAK2 (Ed25519) + تجربة 14 يوم
-- Migration آمنة + صيانة + تقرير دعم
-- نسخ احتياطي من القائمة: ملف → نسخ احتياطي / استعادة
+## بناء المثبت (على ويندوز)
 
-## بناء النسخة (جهاز المطوّر)
-1. Node.js 20+
-2. من جذر المشروع:
-   ```
-   preflight-check.bat
-   build-release.bat
-   ```
-3. الناتج في `release\`
-
-## بعد البناء (إلزامي قبل البيع)
-1. ثبّت على جهاز ويندوز نظيف
-2. نفّذ `TEST-CHECKLIST.md`
-3. (موصى به) وقّع المثبت بشهادة Code Signing
-4. ارفع كـ GitHub Release بالوسم `v1.5.0`
-
-## بيانات العميل
-`%APPDATA%\Maktaba\maktaba-data\`
-
-## إصدار مفتاح ترخيص (عندك فقط)
+```bat
+git pull origin main
+preflight-check.bat
+build-release.bat
 ```
-node tools/issue-license.js 1 "اسم العميل"
+
+المخرجات في:
+
+```text
+release\Maktaba-Setup-1.5.0.exe
+release\win-unpacked\Maktaba.exe
 ```
-لا ترفع `tools/license-private.pem` إلى Git.
+
+## نشر GitHub Release (البند 2)
+
+### أ) من الموقع (أسهل)
+
+1. افتح: https://github.com/ahosam3030/Maktaba-Portable/releases/new
+2. **Tag:** `v1.5.0` (أنشئ الوسم إن لم يوجد)
+3. **Title:** `Maktaba Portable 1.5.0`
+4. الصق ملاحظات الإصدار من الأسفل
+5. ارفع الملف: `release\Maktaba-Setup-1.5.0.exe`
+6. **Publish release**
+
+### ب) من سطر الأوامر (مع GitHub CLI)
+
+```bat
+gh release create v1.5.0 release\Maktaba-Setup-1.5.0.exe --title "Maktaba Portable 1.5.0" --notes-file RELEASE-NOTES-1.5.0.md
+```
+
+## ملاحظات الإصدار 1.5.0
+
+- توحيد رقم الإصدار 1.5.0 في الواجهة والتوثيق والمثبت
+- مبيعات **آجل**: حساب عميل تلقائي + تبويب تحصيل
+- Migration + ترخيص MAK2 + صيانة
+- أيقونة Maktaba للمثبت والاختصار
+- بيانات في AppData — لا تُمسح مع إلغاء التثبيت
+
+## بعد النشر
+
+- اختبر التحميل من صفحة Releases على جهاز نظيف
+- (مستحسن) وقّع الـ exe قبل الرفع — انظر ملف Code Signing
