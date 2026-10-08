@@ -20,7 +20,7 @@ import { Inventory } from './Inventory';
 import { loadSaleUnits, saveSaleUnits, resetSaleUnits, DEFAULT_SALE_UNITS } from '../data/units';
 import { IconUsers, IconPrint, IconSettings, IconPackage, IconLock, IconRefresh, IconBoxes } from './Icons';
 
-type Tab = 'invoice' | 'users' | 'products' | 'libraries' | 'support' | 'danger';
+type Tab = 'invoice' | 'users' | 'products' | 'libraries' | 'support' | 'maintenance' | 'danger';
 
 export function Settings() {
   const sessionUser = getStoredUser();
@@ -167,6 +167,7 @@ export function Settings() {
     { id: 'invoice', label: 'الطباعة', desc: 'بيانات الإيصالات', show: true, Icon: IconPrint },
     { id: 'libraries', label: 'هذا الجهاز', desc: 'المكتبة والذاكرة', show: true, Icon: IconPackage },
     { id: 'support', label: 'الدعم والترخيص', desc: 'واتساب وبلاغات', show: true, Icon: IconSettings },
+    { id: 'maintenance', label: 'الصيانة', desc: 'حالة النظام والنسخ', show: true, Icon: IconRefresh },
     { id: 'danger', label: 'حذف نهائي', desc: 'للمالك فقط', show: isOwner, Icon: IconLock },
   ];
 
@@ -619,6 +620,8 @@ export function Settings() {
 
       {tab === 'support' ? (
         <SupportLicense />
+      ) : tab === 'maintenance' ? (
+        <MaintenancePanel isOwner={!!isOwner} />
       ) : tab === 'danger' && isOwner && sessionOrg && (
         <div className="settings-tab-panel">
           <section className="purchase-panel danger-zone">
@@ -656,6 +659,125 @@ export function Settings() {
             </div>
           </section>
         </div>
+      )}
+    </div>
+  );
+}
+
+
+function MaintenancePanel({ isOwner }: { isOwner: boolean }) {
+  const [data, setData] = useState<{
+    version?: string;
+    database?: { exists: boolean; sizeBytes: number; integrity: string; ok: boolean };
+    counts?: { products: number; sales: number; licenses: number };
+    backups?: { count: number; lastBackup: string | null };
+  } | null>(null);
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setBusy(true);
+    setMsg('');
+    try {
+      const s = await apiRequest<NonNullable<typeof data>>('/maintenance/status');
+      setData(s);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'تعذر التحميل');
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function runIntegrity() {
+    setBusy(true);
+    try {
+      const r = await apiRequest<{ ok: boolean; result: string }>('/maintenance/integrity-check', {
+        method: 'POST',
+        body: '{}',
+      });
+      setMsg(r.ok ? 'قاعدة البيانات سليمة' : 'تحذير: ' + r.result);
+      await load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'فشل الفحص');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportSupport() {
+    setBusy(true);
+    try {
+      const rep = await apiRequest<unknown>('/maintenance/support-report');
+      const blob = new Blob([JSON.stringify(rep, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Maktaba-Support-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg('تم تنزيل تقرير الدعم');
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'فشل التقرير');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const sizeMb =
+    data?.database?.sizeBytes != null ? (data.database.sizeBytes / (1024 * 1024)).toFixed(2) : '—';
+
+  return (
+    <div className="panel" style={{ maxWidth: 720 }}>
+      <h3 style={{ marginTop: 0 }}>مركز الصيانة</h3>
+      <p className="muted">حالة النظام والنسخ الاحتياطي.</p>
+      {msg && <div className="notice">{msg}</div>}
+      <div className="stats-grid" style={{ marginBottom: 16 }}>
+        <div className="stat-card">
+          <div className="stat-label">الإصدار</div>
+          <div className="stat-value">{data?.version || '—'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">قاعدة البيانات</div>
+          <div className="stat-value">{data?.database?.integrity || '—'}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">الحجم</div>
+          <div className="stat-value">{sizeMb} MB</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">نسخ احتياطي</div>
+          <div className="stat-value">{data?.backups?.count ?? '—'}</div>
+        </div>
+      </div>
+      <p className="muted">
+        منتجات: {data?.counts?.products ?? '—'} · مبيعات: {data?.counts?.sales ?? '—'} · تراخيص:{' '}
+        {data?.counts?.licenses ?? '—'}
+      </p>
+      <p className="muted">
+        آخر نسخة:{' '}
+        {data?.backups?.lastBackup
+          ? new Date(data.backups.lastBackup).toLocaleString('en-GB')
+          : 'لا يوجد'}
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+        <button type="button" className="btn" disabled={busy} onClick={() => void load()}>
+          تحديث الحالة
+        </button>
+        <button type="button" className="btn secondary" disabled={busy} onClick={() => void runIntegrity()}>
+          فحص سلامة القاعدة
+        </button>
+        <button type="button" className="btn secondary" disabled={busy} onClick={() => void exportSupport()}>
+          تقرير الدعم
+        </button>
+      </div>
+      {!isOwner && (
+        <p className="muted" style={{ marginTop: 12 }}>
+          بعض عمليات النسخ الاحتياطي متاحة للمالك فقط.
+        </p>
       )}
     </div>
   );

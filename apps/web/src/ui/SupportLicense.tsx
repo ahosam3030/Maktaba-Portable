@@ -21,16 +21,18 @@ export function SupportLicense() {
     trialDays?: number;
     maxDevices: number;
     usedDevices: number;
+    scheme?: string;
     devices: Array<{ deviceId: string; deviceName: string | null; activatedAt: string }>;
   } | null>(null);
   const [serial, setSerial] = useState('');
   const [msg, setMsg] = useState('');
   const [supportCfg, setSupportCfg] = useState<{ whatsappUrl: string; whatsapp: string } | null>(null);
-  const [tickets, setTickets] = useState<Array<{ id: string; subject: string; body: string; status: string; createdAt: string }>>([]);
+  const [tickets, setTickets] = useState<
+    Array<{ id: string; subject: string; body: string; status: string; createdAt: string }>
+  >([]);
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
-  const [issueKey, setIssueKey] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -73,24 +75,6 @@ export function SupportLicense() {
     }
   }
 
-  async function issueLocal() {
-    setBusy(true);
-    setMsg('');
-    try {
-      const res = await apiRequest<{ serialKey: string }>('/license/issue', {
-        method: 'POST',
-        body: JSON.stringify({ maxDevices: 1 }),
-      });
-      setIssueKey(res.serialKey);
-      setSerial(res.serialKey);
-      setMsg('تم إصدار المفتاح من البائع فقط (جهاز واحد)');
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'تعذر إنشاء المفتاح');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function sendTicket() {
     setBusy(true);
     setMsg('');
@@ -104,43 +88,87 @@ export function SupportLicense() {
       setMsg('تم إرسال البلاغ');
       await load();
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : 'تعذر الإرسال');
+      setMsg(e instanceof Error ? e.message : 'فشل الإرسال');
     } finally {
       setBusy(false);
     }
   }
 
+  async function downloadSupportReport() {
+    setBusy(true);
+    setMsg('');
+    try {
+      const data = await apiRequest<unknown>('/maintenance/support-report');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Maktaba-Support-Report-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setMsg('تم تنزيل تقرير الدعم');
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : 'تعذر إنشاء التقرير');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const statusLabel = !status
+    ? '—'
+    : status.activated
+      ? 'مفعّل'
+      : status.trialActive
+        ? `تجربة (${status.daysLeft ?? '—'} يوم متبقي)`
+        : status.trialExpired
+          ? 'انتهت التجربة'
+          : 'غير مفعّل';
+
   return (
     <div className="settings-stack">
       <section className="panel">
         <h3>ترخيص هذا الجهاز</h3>
-        <p className="muted">النسخة المحمولة مخصّصة لجهاز واحد افتراضيًا.</p>
+        <p className="muted">النسخة المحمولة لجهاز واحد. المفاتيح من نوع MAK2 تصدر من البائع فقط.</p>
         {status && (
           <p>
-            الحالة: {status.activated ? 'مفعّل' : status.trialActive ? `تجربة (${status.daysLeft ?? '—'} يوم متبقي)` : status.trialExpired ? 'انتهت التجربة' : 'غير مفعّل'}
-            · {status.usedDevices}/{status.maxDevices || '—'}
-            {status.trialExpired ? ' — الكتابة متوقفة حتى التفعيل' : ''}
+            الحالة: <strong>{statusLabel}</strong>
+            {status.activated ? ` · ${status.usedDevices}/${status.maxDevices || '—'}` : ''}
+            {status.trialExpired && !status.activated ? ' — الكتابة متوقفة حتى التفعيل' : ''}
+            {status.scheme ? ` · ${status.scheme}` : ''}
           </p>
         )}
         <div className="form-grid" style={{ maxWidth: 520 }}>
           <label>
             مفتاح الترخيص
-            <input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="MAK-XXXX-..." dir="ltr" />
+            <input
+              value={serial}
+              onChange={(e) => setSerial(e.target.value)}
+              placeholder="MAK2...."
+              dir="ltr"
+            />
           </label>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button type="button" className="primary-btn" disabled={busy || !serial.trim()} onClick={() => void activate()}>
+          <button
+            type="button"
+            className="primary-btn"
+            disabled={busy || !serial.trim()}
+            onClick={() => void activate()}
+          >
             تفعيل
           </button>
-          <button type="button" className="secondary-btn" disabled={busy} onClick={() => setMsg("اطلب المفتاح من البائع — الإصدار من داخل البرنامج معطّل للحماية")}>
-            إصدار المفتاح من البائع فقط
+          <button
+            type="button"
+            className="secondary-btn"
+            disabled={busy}
+            onClick={() => void downloadSupportReport()}
+          >
+            تنزيل تقرير الدعم
           </button>
         </div>
-        {issueKey ? (
-          <p dir="ltr" className="muted">
-            {issueKey}
-          </p>
-        ) : null}
+        <p className="muted" style={{ marginTop: 8 }}>
+          لإصدار مفتاح عند البائع: <code dir="ltr">node tools/issue-license.js 1</code>
+        </p>
       </section>
 
       <section className="panel">
@@ -151,7 +179,9 @@ export function SupportLicense() {
               تواصل واتساب
             </a>
           </p>
-        ) : null}
+        ) : (
+          <p className="muted">لم يُضبط رقم واتساب الدعم بعد.</p>
+        )}
         <div className="form-grid">
           <label>
             عنوان البلاغ
@@ -162,7 +192,12 @@ export function SupportLicense() {
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} />
           </label>
         </div>
-        <button type="button" className="primary-btn" disabled={busy || !subject.trim() || !body.trim()} onClick={() => void sendTicket()}>
+        <button
+          type="button"
+          className="primary-btn"
+          disabled={busy || !subject.trim() || !body.trim()}
+          onClick={() => void sendTicket()}
+        >
           إرسال بلاغ
         </button>
         {tickets.length > 0 && (
