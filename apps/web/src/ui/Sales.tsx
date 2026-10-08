@@ -91,6 +91,8 @@ export function Sales() {
   const [saleDate, setSaleDate] = useState(new Date().toISOString().slice(0, 10));
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  /** نقدي = دفع كامل افتراضيًا | آجل = مدفوع 0 ويُنشأ حساب عميل */
+  const [payMode, setPayMode] = useState<'cash' | 'credit'>('cash');
   const [discount, setDiscount] = useState('0');
   const [paidAmount, setPaidAmount] = useState('');
   const [saleSearch, setSaleSearch] = useState('');
@@ -329,6 +331,8 @@ export function Sales() {
 
   
   function resetForm(nextSales?: Sale[]) {
+    setPayMode('cash');
+
     setCart([emptyCartLine(), emptyCartLine(), emptyCartLine()]);
     setCustomerName('');
     setCustomerPhone('');
@@ -812,9 +816,10 @@ export function Sales() {
     if (disc > computedSubtotal) { setNotice('الخصم لا يمكن أن يتجاوز إجمالي الفاتورة.'); return; }
     const net = Math.max(0, computedSubtotal - disc);
     let paid = paidAmount.trim() === '' ? net : Number(paidAmount);
-    if (asCredit) {
+    const wantCredit = asCredit || payMode === 'credit';
+    if (wantCredit) {
       if (!customerName.trim()) {
-        setNotice('اسم العميل مطلوب عند البيع الآجل.');
+        setNotice('اسم العميل مطلوب عند البيع الآجل. اكتب اسم العميل ثم احفظ.');
         return;
       }
       if (paidAmount.trim() === '') paid = 0;
@@ -831,7 +836,7 @@ export function Sales() {
             saleDate: saleDate || undefined,
             customerName: customerName.trim() || undefined,
             customerPhone: customerPhone.trim() || undefined,
-            isCredit: asCredit || paid < net,
+            isCredit: wantCredit || paid < net,
             discount: disc,
             paidAmount: paid,
             items: lines.map((line) => ({
@@ -845,7 +850,7 @@ export function Sales() {
         },
         { queueLabel: 'حفظ فاتورة بيع' },
       );
-      setNotice(`تم حفظ فاتورة البيع ${sale.invoiceNumber}` + (asCredit || paid < net ? ' (آجل) — راجع تبويب الآجل.' : paid > 0 ? ' وتسجيل التحصيل في الخزينة.' : '.'));
+      setNotice(`تم حفظ فاتورة البيع ${sale.invoiceNumber}` + (wantCredit || paid < net ? ' (آجل) — راجع قائمة الآجل في الشريط الجانبي.' : paid > 0 ? ' وتسجيل التحصيل في الخزينة.' : '.'));
       await refresh();
       if (andPrint) printSale(sale);
     } catch (e) { setNotice(e instanceof Error ? e.message : 'تعذر حفظ فاتورة البيع.'); }
@@ -1026,9 +1031,53 @@ function printDraft() {
         <div className="pur-section">
           <div className="pur-section-title">بيانات الفاتورة</div>
           <div className="pur-meta-grid sale-meta-grid">
-            <label className="pur-field pur-field--wide">اسم العميل (اختياري)
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="عميل نقدي" />
+            <div className="pur-field pur-field--wide">
+              <span style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>طريقة الدفع</span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={payMode === 'cash' ? 'primary-btn' : 'secondary-btn'}
+                  style={{ minWidth: 110 }}
+                  onClick={() => {
+                    setPayMode('cash');
+                    setPaidAmount('');
+                  }}
+                >
+                  نقدي / فوري
+                </button>
+                <button
+                  type="button"
+                  className={payMode === 'credit' ? 'primary-btn' : 'secondary-btn'}
+                  style={{ minWidth: 110, ...(payMode === 'credit' ? { background: '#b45309', borderColor: '#b45309' } : {}) }}
+                  onClick={() => {
+                    setPayMode('credit');
+                    setPaidAmount('0');
+                  }}
+                >
+                  آجل
+                </button>
+              </div>
+              {payMode === 'credit' && (
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: '#b45309' }}>
+                  يُنشأ حساب للعميل تلقائيًا وتظهر الفاتورة في قائمة <strong>الآجل</strong>.
+                </p>
+              )}
+            </div>
+            <label className="pur-field pur-field--wide">
+              {payMode === 'credit' ? 'اسم العميل (إجباري للآجل)' : 'اسم العميل (اختياري)'}
+              <input
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder={payMode === 'credit' ? 'مثال: أحمد محمد' : 'عميل نقدي'}
+                required={payMode === 'credit'}
+                style={payMode === 'credit' ? { borderColor: '#b45309', boxShadow: '0 0 0 1px #fbbf24' } : undefined}
+              />
             </label>
+            {payMode === 'credit' && (
+              <label className="pur-field">هاتف العميل
+                <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="اختياري" dir="ltr" />
+              </label>
+            )}
             <label className="pur-field">التاريخ
               <input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
             </label>
@@ -1247,20 +1296,42 @@ function printDraft() {
               </div>
             </div>
             <div className="pur-footer-actions">
-              <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(false, false)}>
-                {saving ? 'جارٍ الحفظ...' : 'حفظ (نقدي)'}
-              </button>
-              <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(false, true)}>
-                حفظ آجل
-              </button>
-              <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(true, false)}>
-                حفظ وطباعة
-              </button>
-              <button className="secondary-btn" type="button" disabled={saving} onClick={() => void saveSale(true, true)}>
-                آجل وطباعة
-              </button>
+              {payMode === 'credit' ? (
+                <>
+                  <button
+                    className="primary-btn"
+                    type="button"
+                    disabled={saving}
+                    style={{ background: '#b45309', borderColor: '#b45309' }}
+                    onClick={() => void saveSale(false, true)}
+                  >
+                    {saving ? 'جارٍ الحفظ...' : 'حفظ فاتورة آجل'}
+                  </button>
+                  <button
+                    className="primary-btn"
+                    type="button"
+                    disabled={saving}
+                    style={{ background: '#92400e', borderColor: '#92400e' }}
+                    onClick={() => void saveSale(true, true)}
+                  >
+                    حفظ آجل وطباعة
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(false, false)}>
+                    {saving ? 'جارٍ الحفظ...' : 'حفظ الفاتورة'}
+                  </button>
+                  <button className="primary-btn" type="button" disabled={saving} onClick={() => void saveSale(true, false)}>
+                    حفظ وطباعة
+                  </button>
+                  <button className="secondary-btn" type="button" disabled={saving} onClick={() => void saveSale(false, true)}>
+                    تحويل لآجل وحفظ
+                  </button>
+                </>
+              )}
               <button className="secondary-btn" type="button" onClick={printDraft}>طباعة مسودة</button>
-              <button className="secondary-btn" type="button" onClick={() => resetForm()}>فاتورة جديدة</button>
+              <button className="secondary-btn" type="button" onClick={() => { setPayMode('cash'); resetForm(); }}>فاتورة جديدة</button>
             </div>
           </div>
         </div>
