@@ -64,7 +64,7 @@
     "win": {
       "target": [
         {
-          "target": "dir",
+          "target": "nsis",
           "arch": [
             "x64"
           ]
@@ -76,15 +76,25 @@
           ]
         }
       ],
-      "artifactName": "Maktaba-Portable-${version}.${ext}",
-      "icon": "build/icon.ico",
+      "artifactName": "Maktaba-Install-${version}.${ext}",
+      "icon": "build/icon.png",
       "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Maktaba"
+      "createStartMenuShortcut": true,
+      "shortcutName": "Maktaba",
+      "uninstallDisplayName": "Maktaba",
+      "installerLanguages": [
+        "en_US"
+      ],
+      "language": "1033",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     },
     "icon": "build/icon.png",
     "publish": [

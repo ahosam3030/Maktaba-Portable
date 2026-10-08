@@ -1,24 +1,18 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-title Maktaba 1.5.0 - بناء Release
+title Maktaba 1.5.0 - بناء Release / Install
 echo ========================================
-echo   Maktaba Portable 1.5.0 — Release Build
+echo   Maktaba — بناء Install.exe
 echo ========================================
 echo.
 
 call preflight-check.bat
-if errorlevel 1 (
-  echo فشل الفحص المسبق
-  pause
-  exit /b 1
-)
+if errorlevel 1 ( pause & exit /b 1 )
 
 call build-desktop.bat
 if errorlevel 1 exit /b 1
 
-echo.
-echo تثبيت أدوات البناء...
 call npm install
 if errorlevel 1 exit /b 1
 
@@ -26,35 +20,32 @@ if not exist "data\" mkdir data
 if not exist "data\.gitkeep" echo. > data\.gitkeep
 
 echo.
-echo [أ] بناء مجلد التشغيل win-unpacked (بدون NSIS)...
+echo [1/2] win-unpacked...
 call npx electron-builder --win dir --x64
 if errorlevel 1 (
-  echo فشل بناء win-unpacked
+  echo فشل win-unpacked
   pause
   exit /b 1
 )
 
 echo.
-echo [ب] محاولة بناء Portable exe...
-call npx electron-builder --win portable --x64
+echo [2/2] Install.exe (NSIS)...
+call npx electron-builder --win nsis --x64
 if errorlevel 1 (
   echo.
-  echo تحذير: فشل Portable بسبب الايقونة/NSIS
-  echo يمكنك التشغيل مباشرة من:
-  echo   release\win-unpacked\Maktaba.exe
+  echo NSIS فشل — جاري إنشاء مثبت بسيط...
+  call create-simple-installer.bat
   echo.
-  echo انسخ مجلد release\win-unpacked إلى أي مكان وشغّل Maktaba.exe
+  echo يمكنك التشغيل من: release\win-unpacked\Maktaba.exe
   pause
   exit /b 0
 )
 
 echo.
-echo ========== تم البناء ==========
+echo ========== تم ==========
 echo.
-echo 1^) تشغيل فوري بدون تثبيت:
-echo    release\win-unpacked\Maktaba.exe
-echo.
-echo 2^) ملف محمول إن وُجد:
 dir /b release\*.exe 2>nul
 echo.
+echo المثبت: release\Maktaba-Install-1.5.0.exe
+echo أو أي *.exe في release\
 pause
