@@ -1,0 +1,3 @@
+# نسخة Portable لا تحتاج Docker ولا PostgreSQL.
+# قاعدة البيانات: ملف data/maktaba.db (SQLite)
+# للتشغيل: start.bat

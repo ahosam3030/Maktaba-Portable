@@ -1,0 +1,105 @@
+{
+  "name": "maktaba-portable",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Maktaba — تطبيق سطح مكتب لإدارة المكتبة والخدمات",
+  "author": "Maktaba",
+  "main": "electron/main.js",
+  "scripts": {
+    "build:api": "npm run build --prefix apps/api",
+    "build:web:desktop": "cd apps/web && npm run build",
+    "build:desktop": "npm run build:api && npm run build:web:desktop",
+    "start:desktop": "electron .",
+    "desktop": "npm run build:desktop && electron .",
+    "dist:win": "electron-builder --win nsis --x64"
+  },
+  "build": {
+    "appId": "com.maktaba.portable",
+    "productName": "Maktaba",
+    "copyright": "Copyright Maktaba",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "package.json",
+      "build/icon.ico",
+      "build/icon.png"
+    ],
+    "extraResources": [
+      {
+        "from": "apps",
+        "to": "maktaba/apps",
+        "filter": [
+          "api/dist/**",
+          "api/prisma/**",
+          "api/package.json",
+          "api/node_modules/**",
+          "api/.env.example",
+          "web/dist/**"
+        ]
+      },
+      {
+        "from": "data",
+        "to": "maktaba/data",
+        "filter": [
+          ".gitkeep",
+          "README.txt"
+        ]
+      },
+      {
+        "from": "دليل-الاستخدام.md",
+        "to": "maktaba/دليل-الاستخدام.md"
+      },
+      {
+        "from": "backup.bat",
+        "to": "maktaba/backup.bat"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "Maktaba-Setup-${version}.${ext}",
+      "publisherName": "Maktaba",
+      "icon": "icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Maktaba",
+      "uninstallDisplayName": "Maktaba",
+      "installerLanguages": [
+        "ar",
+        "en_US"
+      ],
+      "language": "1025",
+      "runAfterFinish": true
+    },
+    "icon": "icon.png",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ahosam3030",
+        "repo": "Maktaba-Portable"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  }
+}
