@@ -10,7 +10,7 @@ echo.
 
 where node >nul 2>&1
 if errorlevel 1 (
-  echo [ERROR] Install Node.js first
+  echo [ERROR] ثبّت Node.js أولاً
   pause
   exit /b 1
 )
@@ -22,23 +22,31 @@ if exist "C:\Program Files\Git\cmd\git.exe" (
   git pull origin main 2>nul
 )
 
-echo [2/4] remove old dist...
+echo [2/4] حذف الواجهة القديمة...
 if exist "apps\web\dist" rd /s /q "apps\web\dist"
 
-echo [3/4] build web...
+echo [3/4] بناء الواجهة...
 cd apps\web
-REM لا نثبت منفذًا — الواجهة المكتبية تستخدم نفس أصل السيرفر (/api)
+if not exist "node_modules\" call npm install
 set VITE_API_URL=
 call npm run build
 if errorlevel 1 (
-  echo BUILD FAILED
-  cd ..\..
+  echo.
+  echo BUILD FAILED — راجع الأخطاء أعلاه
+  cd /d "%~dp0"
   pause
   exit /b 1
 )
-cd ..\..
+cd /d "%~dp0"
 
-echo [4/4] done. Close Maktaba window then run start-desktop.bat
+if not exist "apps\web\dist\index.html" (
+  echo [خطأ] لم يُنشأ apps\web\dist\index.html
+  pause
+  exit /b 1
+)
+
+echo [4/4] تم بناء الواجهة بنجاح.
 echo.
+echo اقفل نافذة Maktaba إن كانت مفتوحة، ثم اضغط أي زر لتشغيل البرنامج...
 pause
-call start-desktop.bat
+call "%~dp0start-desktop.bat"
