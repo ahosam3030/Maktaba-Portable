@@ -189,7 +189,7 @@ export function Inventory({ embedded = false }: { embedded?: boolean } = {}) {
       name: form.name.trim(),
       barcode: form.barcode.trim() || null,
       unit: form.unit,
-      piecesPerPack: Number(form.piecesPerPack) || 1,
+      piecesPerPack: Math.max(1, Math.floor(Number(form.piecesPerPack) || 1)),
       currentCost: Number(form.currentCost) || 0,
       salePrice: Number(form.salePrice) || 0,
       minStock: Number(form.minStock) || 0,
@@ -427,209 +427,137 @@ export function Inventory({ embedded = false }: { embedded?: boolean } = {}) {
 
       {pageTab === 'products' && !loading && (
         <>
-          <section className={`purchase-panel pur-invoice${embedded ? ' product-form-card' : ''}`}>
+          <section className={`purchase-panel inv-form-card${embedded ? ' product-form-card' : ''}`}>
             <div className="panel-heading">
               <div>
                 <h2>{editId ? 'تعديل صنف' : 'صنف جديد في المخزون'}</h2>
-                <p>نفس تصميم فاتورة البيع: بيانات الصنف · الأسعار والرصيد · حفظ سريع</p>
+                <p>الاسم · الوحدة وعدد القطع · التكلفة وسعر البيع · الرصيد الافتتاحي</p>
               </div>
               {editId ? (
                 <button className="secondary-btn small" type="button" onClick={startCreate}>إلغاء التعديل</button>
               ) : null}
             </div>
-
-            <div className="pur-section">
-              <div className="pur-section-title">بيانات الصنف</div>
-              <div className="pur-meta-grid sale-meta-grid">
-                <label className="pur-field pur-field--wide">
-                  اسم الصنف *
-                  <input value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="مثال: قلم جاف أزرق" autoComplete="off" />
-                </label>
-                <label className="pur-field">
-                  الباركود
-                  <input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} dir="ltr" placeholder="اختياري" autoComplete="off" />
-                </label>
-                <label className="pur-field">
-                  الوحدة
-                  <select value={form.unit} onChange={(e) => {
-                    const u = e.target.value;
-                    setField('unit', u);
-                    if (u === 'قطعة') setField('piecesPerPack', '1');
-                  }}>
-                    {saleUnits.map((u) => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                    {!saleUnits.includes(form.unit) && form.unit ? (
-                      <option value={form.unit}>{form.unit}</option>
-                    ) : null}
-                  </select>
-                </label>
-                <label className="pur-field">
-                  قطع في العبوة
-                  <input
-                    type="number"
-                    min={1}
-                    value={form.piecesPerPack}
-                    disabled={form.unit === 'قطعة'}
-                    onChange={(e) => setField('piecesPerPack', e.target.value)}
-                    dir="ltr"
-                    title="لو الوحدة علبة/دستة: كم قطعة داخلها"
-                  />
-                </label>
-                <label className="pur-field pur-field--wide">
-                  إضافة وحدة جديدة
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      value={newUnit}
-                      onChange={(e) => setNewUnit(e.target.value)}
-                      placeholder="مثال: كيس · لفة · متر"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          const n = newUnit.trim();
-                          if (!n) return;
-                          const list = addSaleUnit(n);
-                          setSaleUnits(list);
-                          setField('unit', n);
-                          setNewUnit('');
-                          setNotice(`تمت إضافة الوحدة «${n}» (تظهر أيضًا في المبيعات)`);
-                        }
+            <div className="inv-form">
+              <div className="inv-form-section">
+                <div className="inv-form-section-title">1) بيانات الصنف</div>
+                <div className="inv-form-grid">
+                  <label className="inv-field inv-field--span2">
+                    <span>اسم الصنف <em>*</em></span>
+                    <input value={form.name} onChange={(e) => setField('name', e.target.value)} placeholder="مثال: قلم جاف أزرق" autoComplete="off" />
+                  </label>
+                  <label className="inv-field">
+                    <span>الباركود</span>
+                    <input value={form.barcode} onChange={(e) => setField('barcode', e.target.value)} dir="ltr" placeholder="اختياري" autoComplete="off" />
+                  </label>
+                  <label className="inv-field">
+                    <span>الوحدة</span>
+                    <select value={form.unit} onChange={(e) => {
+                      const u = e.target.value;
+                      setField('unit', u);
+                      if (u === 'قطعة' || u === 'PIECE') {
+                        if (Number(form.piecesPerPack) <= 1) setField('piecesPerPack', '1');
+                      } else if (u === 'علبة' || u === 'PACK' || u === 'دستة' || u === 'كرتونة') {
+                        if (Number(form.piecesPerPack) <= 1) setField('piecesPerPack', '10');
+                      }
+                    }}>
+                      {saleUnits.map((u) => (<option key={u} value={u}>{u}</option>))}
+                      {!saleUnits.includes(form.unit) && form.unit ? (<option value={form.unit}>{form.unit}</option>) : null}
+                    </select>
+                  </label>
+                  <label className="inv-field">
+                    <span>عدد القطع في الوحدة</span>
+                    <input type="number" min={1} step={1} value={form.piecesPerPack}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === '' || Number(v) >= 1) setField('piecesPerPack', v === '' ? '1' : v);
                       }}
-                    />
-                    <button
-                      type="button"
-                      className="secondary-btn small"
-                      onClick={() => {
+                      dir="ltr" title="مثال: علبة فيها 12 قطعة → 12" />
+                    <small className="inv-hint">
+                      {Number(form.piecesPerPack) > 1
+                        ? `كل «${form.unit || 'وحدة'}» = ${form.piecesPerPack} قطعة`
+                        : 'للقطعة اترك 1 — للعلبة ضع عدد القطع (الحقل مفتوح دائماً)'}
+                    </small>
+                  </label>
+                  <label className="inv-field inv-field--span2">
+                    <span>إضافة وحدة مخصصة</span>
+                    <div className="inv-unit-add">
+                      <input value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="مثال: كيس · لفة · متر"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const n = newUnit.trim();
+                            if (!n) return;
+                            const next = addSaleUnit(n);
+                            setSaleUnits(next); setField('unit', n); setNewUnit('');
+                            setNotice(`تمت إضافة الوحدة «${n}»`);
+                          }
+                        }} />
+                      <button type="button" className="secondary-btn" onClick={() => {
                         const n = newUnit.trim();
                         if (!n) return;
-                        const list = addSaleUnit(n);
-                        setSaleUnits(list);
-                        setField('unit', n);
-                        setNewUnit('');
+                        const next = addSaleUnit(n);
+                        setSaleUnits(next); setField('unit', n); setNewUnit('');
                         setNotice(`تمت إضافة الوحدة «${n}»`);
-                      }}
-                    >
-                      إضافة
-                    </button>
+                      }}>إضافة</button>
+                    </div>
+                  </label>
+                </div>
+              </div>
+              <div className="inv-form-section">
+                <div className="inv-form-section-title">2) الأسعار والرصيد</div>
+                <div className="inv-form-grid inv-form-grid--prices">
+                  <label className="inv-field"><span>تكلفة القطعة</span>
+                    <input type="number" min={0} step="any" value={form.currentCost} onChange={(e) => setField('currentCost', e.target.value)} dir="ltr" /></label>
+                  <label className="inv-field"><span>سعر البيع</span>
+                    <input type="number" min={0} step="any" value={form.salePrice} onChange={(e) => setField('salePrice', e.target.value)} dir="ltr" /></label>
+                  <label className="inv-field"><span>المكسب / قطعة</span>
+                    <div className="inv-readonly" style={{ color: (Number(form.salePrice)||0)-(Number(form.currentCost)||0) >= 0 ? '#16815d' : '#b42318' }}>
+                      {money((Number(form.salePrice)||0)-(Number(form.currentCost)||0))}
+                    </div></label>
+                  <label className="inv-field"><span>الحد الأدنى</span>
+                    <input type="number" min={0} step="any" value={form.minStock} onChange={(e) => setField('minStock', e.target.value)} dir="ltr" /></label>
+                  {!editId ? (
+                    <label className="inv-field"><span>رصيد افتتاحي (قطعة)</span>
+                      <input type="number" min={0} step="any" value={form.initialStock} onChange={(e) => setField('initialStock', e.target.value)} dir="ltr" placeholder="0" /></label>
+                  ) : null}
+                  <label className="inv-field"><span>قيمة الرصيد</span>
+                    <div className="inv-readonly">{money(Math.max(0, Number(form.initialStock)||0)*(Number(form.currentCost)||0))}</div></label>
+                  <label className="inv-field inv-field--span2"><span>ملاحظات</span>
+                    <input value={form.notes} onChange={(e) => setField('notes', e.target.value)} placeholder="اختياري" /></label>
+                </div>
+                <div className="inv-form-extra">
+                  <label className="inv-check">
+                    <input type="checkbox" checked={form.active} onChange={(e) => setField('active', e.target.checked)} />
+                    <span>الصنف نشط (يظهر في البيع والشراء)</span>
+                  </label>
+                  <div className="inv-image-row">
+                    <label className="inv-field" style={{ flex: 1, margin: 0 }}>
+                      <span>رابط صورة</span>
+                      <input value={form.imageUrl} onChange={(e) => setField('imageUrl', e.target.value)} dir="ltr" placeholder="https:// أو ارفع ملفاً" />
+                    </label>
+                    <label className="inv-file-btn"><span>رفع صورة</span>
+                      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => {
+                        const file = e.target.files?.[0]; e.target.value = '';
+                        if (!file) return;
+                        if (file.size > 2*1024*1024) { setNotice('الحد الأقصى 2 ميجابايت.'); return; }
+                        setBusy(true);
+                        void uploadProductImage(file).then((url) => { setField('imageUrl', url); setNotice('تم رفع الصورة.'); })
+                          .catch((err) => setNotice(err instanceof Error ? err.message : 'تعذر الرفع')).finally(() => setBusy(false));
+                      }} />
+                    </label>
+                    {form.imageUrl ? <img src={resolveMediaUrl(form.imageUrl)||''} alt="" className="inv-thumb" /> : null}
                   </div>
-                </label>
+                </div>
               </div>
             </div>
-
-            <div className="pur-section">
-              <div className="pur-section-title">الأسعار والرصيد</div>
-              <div className="sale-lines-wrap pur-lines">
-                <table className="sale-lines-table">
-                  <thead>
-                    <tr>
-                      <th>تكلفة القطعة</th>
-                      <th>سعر البيع</th>
-                      <th>المكسب / قطعة</th>
-                      <th>الحد الأدنى</th>
-                      {!editId ? <th>رصيد افتتاحي</th> : null}
-                      <th>قيمة الرصيد</th>
-                      <th>ملاحظات</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <input type="number" min={0} step="0.01" value={form.currentCost} onChange={(e) => setField('currentCost', e.target.value)} dir="ltr" />
-                      </td>
-                      <td>
-                        <input type="number" min={0} step="0.01" value={form.salePrice} onChange={(e) => setField('salePrice', e.target.value)} dir="ltr" />
-                      </td>
-                      <td>
-                        <span className={(Number(form.salePrice) || 0) - (Number(form.currentCost) || 0) >= 0 ? 'num-ok' : 'num-bad'}>
-                          {money((Number(form.salePrice) || 0) - (Number(form.currentCost) || 0))}
-                        </span>
-                      </td>
-                      <td>
-                        <input type="number" min={0} step="any" value={form.minStock} onChange={(e) => setField('minStock', e.target.value)} dir="ltr" />
-                      </td>
-                      {!editId ? (
-                        <td>
-                          <input
-                            type="number"
-                            min={0}
-                            step="any"
-                            value={form.initialStock}
-                            onChange={(e) => setField('initialStock', e.target.value)}
-                            dir="ltr"
-                            placeholder="0"
-                          />
-                        </td>
-                      ) : null}
-                      <td>
-                        <span className="num-ok">
-                          {money((Number(form.initialStock) || 0) * (Number(form.currentCost) || 0))}
-                        </span>
-                      </td>
-                      <td>
-                        <input value={form.notes} onChange={(e) => setField('notes', e.target.value)} placeholder="اختياري" />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div className="pur-lines-actions" style={{ marginTop: 10 }}>
-                <label className="pur-field" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, margin: 0 }}>
-                  <input type="checkbox" checked={form.active} onChange={(e) => setField('active', e.target.checked)} />
-                  <span>الصنف نشط (بيع وشراء)</span>
-                </label>
-                <label className="pur-field" style={{ margin: 0, minWidth: 200 }}>
-                  صورة / رابط
-                  <input value={form.imageUrl} onChange={(e) => setField('imageUrl', e.target.value)} dir="ltr" placeholder="https:// أو ارفع لاحقًا" />
-                </label>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    e.target.value = '';
-                    if (!file) return;
-                    if (file.size > 2 * 1024 * 1024) {
-                      setNotice('الحد الأقصى للصورة 2 ميجابايت.');
-                      return;
-                    }
-                    setBusy(true);
-                    void uploadProductImage(file)
-                      .then((url) => {
-                        setField('imageUrl', url);
-                        setNotice('تم رفع الصورة.');
-                      })
-                      .catch((err) => setNotice(err instanceof Error ? err.message : 'تعذر الرفع'))
-                      .finally(() => setBusy(false));
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="pur-footer sale-footer">
-              <div className="pur-footer-fields">
-                <span className="muted">{editId ? 'تعديل صنف محفوظ' : 'إضافة مباشرة للمخزون — بدون فاتورة مشتريات'}</span>
-              </div>
-              <div className="pur-footer-summary">
-                <div className="pur-total-box">
-                  <div className="label">تكلفة القطعة</div>
-                  <div className="value">{money(Number(form.currentCost) || 0)}</div>
-                </div>
-                <div className="pur-total-box">
-                  <div className="label">سعر البيع</div>
-                  <div className="value">{money(Number(form.salePrice) || 0)}</div>
-                </div>
-                <div className="pur-total-box">
-                  <div className="label">رصيد افتتاحي</div>
-                  <div className="value">{qty(Number(form.initialStock) || 0)}</div>
-                </div>
-                <div className="pur-footer-actions">
-                  <button className="primary-btn" type="button" disabled={busy} onClick={() => void saveProduct()}>
-                    {editId ? 'حفظ التعديل' : 'حفظ الصنف'}
-                  </button>
-                  <button className="secondary-btn" type="button" disabled={busy} onClick={startCreate}>
-                    {editId ? 'صنف جديد' : 'تفريغ'}
-                  </button>
-                </div>
+            <div className="inv-form-footer">
+              <div className="inv-form-footer-meta"><span className="muted">{editId ? 'تعديل صنف محفوظ' : 'يُضاف للمخزون مباشرة'}</span></div>
+              <div className="inv-form-footer-actions">
+                <div className="inv-kpi"><span>تكلفة</span><strong>{money(Number(form.currentCost)||0)}</strong></div>
+                <div className="inv-kpi"><span>بيع</span><strong>{money(Number(form.salePrice)||0)}</strong></div>
+                <div className="inv-kpi"><span>قطع/وحدة</span><strong>{Number(form.piecesPerPack)||1}</strong></div>
+                <button className="primary-btn" type="button" disabled={busy} onClick={() => void saveProduct()}>{editId ? 'حفظ التعديل' : 'حفظ الصنف'}</button>
+                <button className="secondary-btn" type="button" disabled={busy} onClick={startCreate}>{editId ? 'صنف جديد' : 'تفريغ'}</button>
               </div>
             </div>
           </section>

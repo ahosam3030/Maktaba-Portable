@@ -544,4 +544,14 @@ export class SalesController {
       })),
     });
   }
+  @Get(':id')
+  async getOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    const sale = await this.prisma.sale.findFirst({
+      where: { id, organizationId: user.organizationId },
+      include: { items: true, customer: true },
+    });
+    if (!sale) throw new NotFoundException('الفاتورة غير موجودة');
+    return sale;
+  }
+
 }

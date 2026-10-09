@@ -82,7 +82,7 @@ export class CustomersController {
   async pay(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Body() body: { amount?: number; notes?: string; method?: string; date?: string },
+    @Body() body: { amount?: number; notes?: string; method?: string; date?: string; saleId?: string },
   ) {
     const amount = Number(body.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -94,17 +94,35 @@ export class CustomersController {
     if (!customer) throw new NotFoundException('العميل غير موجود');
     const date = body.date ? new Date(body.date) : new Date();
     if (Number.isNaN(date.getTime())) throw new BadRequestException('تاريخ غير صحيح');
+    const targetSaleId = body.saleId?.trim() || null;
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const openSales = await tx.sale.findMany({
-        where: {
-          organizationId: user.organizationId,
-          customerId: id,
-          paymentStatus: { in: ['CREDIT', 'PARTIAL'] },
-        },
-        orderBy: { saleDate: 'asc' },
-      });
+      let openSales;
+      if (targetSaleId) {
+        const one = await tx.sale.findFirst({
+          where: { id: targetSaleId, organizationId: user.organizationId, customerId: id },
+        });
+        if (!one) throw new BadRequestException('الفاتورة غير موجودة لهذا العميل');
+        const due = roundMoney(Number(one.total) - Number(one.paidAmount));
+        if (due <= 0) throw new BadRequestException('هذه الفاتورة مسددة بالكامل');
+        if (roundMoney(amount) - due > 0.001) {
+          throw new BadRequestException(
+            `المبلغ أكبر من متبقي الفاتورة (${due.toFixed(2)}). أدخل مبلغًا أقل أو اختر توزيعًا على كل الفواتير.`,
+          );
+        }
+        openSales = [one];
+      } else {
+        openSales = await tx.sale.findMany({
+          where: {
+            organizationId: user.organizationId,
+            customerId: id,
+            paymentStatus: { in: ['CREDIT', 'PARTIAL'] },
+          },
+          orderBy: { saleDate: 'asc' },
+        });
+      }
       let remaining = roundMoney(amount);
+      const applied: Array<{ saleId: string; invoiceNumber: string; applied: number }> = [];
       for (const sale of openSales) {
         if (remaining <= 0) break;
         const due = roundMoney(Number(sale.total) - Number(sale.paidAmount));
@@ -116,8 +134,18 @@ export class CustomersController {
           where: { id: sale.id },
           data: { paidAmount: new Prisma.Decimal(newPaid), paymentStatus: status },
         });
+        applied.push({ saleId: sale.id, invoiceNumber: sale.invoiceNumber, applied: apply });
         remaining = roundMoney(remaining - apply);
       }
+      if (applied.length === 0) {
+        throw new BadRequestException('لا توجد فواتير آجل مفتوحة لهذا العميل');
+      }
+      const noteExtra =
+        targetSaleId && applied[0]
+          ? ` · فاتورة ${applied[0].invoiceNumber}`
+          : applied.length
+            ? ` · ${applied.map((a) => a.invoiceNumber).join(', ')}`
+            : '';
       const payment = await tx.customerPayment.create({
         data: {
           organizationId: user.organizationId,
@@ -125,7 +153,7 @@ export class CustomersController {
           amount: new Prisma.Decimal(roundMoney(amount)),
           date,
           method: body.method?.trim() || 'CASH',
-          notes: body.notes?.trim() || null,
+          notes: ((body.notes?.trim() || '') + noteExtra) || null,
         },
       });
       await tx.cashTransaction.create({
@@ -138,10 +166,10 @@ export class CustomersController {
           amount: new Prisma.Decimal(roundMoney(amount)),
           method: body.method?.trim() || 'CASH',
           reference: `CUSTOMER_PAY:${payment.id}`,
-          notes: `تحصيل من ${customer.name}`,
+          notes: `تحصيل من ${customer.name}${noteExtra}`,
         },
       });
-      return payment;
+      return { payment, applied, unallocated: remaining };
     });
 
     await this.audit.log({
@@ -150,8 +178,9 @@ export class CustomersController {
       action: 'CUSTOMER_PAYMENT',
       entity: 'Customer',
       entityId: id,
-      meta: { amount },
+      meta: { amount, saleId: targetSaleId, applied: result.applied },
     });
     return result;
   }
+
 }
