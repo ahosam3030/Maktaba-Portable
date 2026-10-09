@@ -5343,3 +5343,89 @@ body {
 .inv-kpi { background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 10px; padding: 6px 12px; display: flex; flex-direction: column; min-width: 72px; }
 .inv-kpi span { font-size: 11px; color: #0f766e; }
 .inv-kpi strong { font-size: 14px; color: #134e4a; }
+
+
+/* ——— صفحة الآجل ——— */
+.credit-page .credit-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(360px, 1.35fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .credit-page .credit-layout { grid-template-columns: 1fr; }
+}
+.credit-panel-list, .credit-panel-detail {
+  min-width: 0;
+}
+.credit-empty {
+  padding: 32px 16px;
+  text-align: center;
+}
+.credit-row-active {
+  background: #ecfdf5 !important;
+}
+.credit-collect-card {
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+  border: 1px solid #fcd34d;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.credit-collect-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 10px;
+  color: #92400e;
+}
+.credit-collect-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+.credit-collect-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #647b80;
+}
+.credit-collect-grid input,
+.credit-collect-grid select {
+  border: 1px solid var(--color-border, #e5ecec);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: #fff;
+}
+.credit-collect-notes { grid-column: 1 / -1; }
+.credit-collect-hint { margin: 8px 0 10px; font-size: 12px; }
+.credit-invoices-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0 10px;
+}
+.credit-invoices-head h3 { margin: 0; font-size: 15px; }
+.credit-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.credit-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.credit-badge--paid { background: #d1fae5; color: #065f46; }
+.credit-badge--partial { background: #fef3c7; color: #92400e; }
+.credit-badge--open { background: #ffedd5; color: #9a3412; }
+.credit-detail-card {
+  margin-top: 16px;
+  border: 1px solid #99f6e4;
+  background: #f0fdfa;
+  border-radius: 14px;
+  padding: 12px 14px;
+}
