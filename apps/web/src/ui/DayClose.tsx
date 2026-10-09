@@ -100,7 +100,15 @@ export function DayClose() {
   }
 
   return (
-    <div className="home-dashboard">
+    <div className="purchases-page">
+      <div className="purchase-title">
+        <div>
+          <span className="eyebrow">المالية</span>
+          <h1>إغلاق اليوم</h1>
+          <p>ملخص اليوم وتأكيد الإغلاق</p>
+        </div>
+      </div>
+      <div className="home-dashboard">
       <div className="panel">
         <div className="panel-heading">
           <div>
@@ -242,5 +250,6 @@ export function DayClose() {
         </div>
       </div>
     </div>
-  );
+    </div>
+  )
 }

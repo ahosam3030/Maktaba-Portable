@@ -5429,3 +5429,354 @@ body {
   border-radius: 14px;
   padding: 12px 14px;
 }
+
+
+/* ========== توحيد احترافي لكل الصفحات ========== */
+
+/* مساحة المحتوى */
+.main-content.page-stage {
+  padding: 18px 22px 28px !important;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+.main-content.page-stage > .purchases-page,
+.main-content.page-stage > .panel-stack,
+.main-content.page-stage > .home-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* عنوان الصفحة موحّد */
+.purchase-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+.purchase-title .eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  border-radius: 999px;
+  padding: 3px 10px;
+  margin-bottom: 6px;
+}
+.purchase-title h1 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-text-strong);
+  line-height: 1.25;
+}
+.purchase-title p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  max-width: 520px;
+  line-height: 1.45;
+}
+
+/* بطاقات الأقسام */
+.purchase-panel,
+.panel {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.03);
+}
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+.panel-heading h2,
+.panel-heading h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-text-strong);
+}
+.panel-heading p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+/* إحصائيات */
+.pur-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.pur-stat {
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+.pur-stat .label {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+  margin-bottom: 2px;
+}
+.pur-stat .value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-text-strong);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+/* تبويبات الصفحة */
+.page-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  margin: 2px 0 4px;
+}
+.page-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+.page-tabs button:hover {
+  background: rgba(255,255,255,.7);
+  color: var(--color-text);
+}
+.page-tabs button.active {
+  background: #fff;
+  color: var(--color-primary-dark);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  font-weight: 700;
+}
+
+/* شريط فلترة */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+.filter-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  min-width: 120px;
+}
+.filter-bar label.grow { flex: 1; min-width: 180px; }
+.filter-bar input,
+.filter-bar select {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 9px 11px;
+  background: #fff;
+  font-size: 13.5px;
+  color: var(--color-text);
+}
+.filter-bar input:focus,
+.filter-bar select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+/* جداول */
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: #fff;
+}
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-table-head);
+  color: var(--color-text-label);
+  font-weight: 700;
+  font-size: 12px;
+  text-align: right;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+.table-wrap tbody td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+  vertical-align: middle;
+}
+.table-wrap tbody tr:last-child td { border-bottom: 0; }
+.table-wrap tbody tr:hover td { background: var(--color-row-hover); }
+.table-wrap td[dir="ltr"],
+.table-wrap .num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* أزرار موحّدة */
+.primary-btn,
+.secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 9px 14px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .08s, box-shadow .15s;
+}
+.primary-btn {
+  background: linear-gradient(180deg, var(--color-primary-hover), var(--color-primary));
+  color: #fff;
+  border: 1px solid var(--color-primary-dark);
+  box-shadow: 0 1px 2px rgba(15, 118, 110, 0.25);
+}
+.primary-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+.primary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.secondary-btn {
+  background: #fff;
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+}
+.secondary-btn:hover:not(:disabled) {
+  background: var(--color-primary-soft);
+  border-color: #b6e2dc;
+  color: var(--color-primary-dark);
+}
+.primary-btn.small,
+.secondary-btn.small {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+
+/* حقول النماذج */
+.purchase-panel label,
+.panel label {
+  font-size: 12.5px;
+  color: var(--color-text-label);
+}
+.purchase-panel input:not([type="checkbox"]):not([type="file"]):not([type="radio"]),
+.purchase-panel select,
+.purchase-panel textarea,
+.panel input:not([type="checkbox"]):not([type="file"]):not([type="radio"]),
+.panel select,
+.panel textarea {
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  padding: 9px 11px;
+  background: #fff;
+  font-size: 13.5px;
+  color: var(--color-text);
+}
+.purchase-panel input:focus,
+.purchase-panel select:focus,
+.purchase-panel textarea:focus,
+.panel input:focus,
+.panel select:focus,
+.panel textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* لوحة التحكم */
+.home-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.welcome-banner {
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 55%, #14b8a6 100%);
+  color: #fff;
+  border-radius: 18px;
+  padding: 20px 22px;
+  box-shadow: 0 10px 28px rgba(15, 118, 110, 0.25);
+}
+.welcome-banner h2 { margin: 4px 0 6px; font-size: 22px; }
+.welcome-greeting { margin: 0; opacity: 0.9; font-size: 13px; }
+.welcome-sub { margin: 0; opacity: 0.85; font-size: 13px; }
+
+/* تقليل المسافات الزائدة الشائعة */
+.purchases-page > * + * { margin-top: 0; }
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.muted { color: var(--color-text-muted); }
+.notice {
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: var(--color-primary-soft);
+  border: 1px solid #b6e2dc;
+  color: var(--color-primary-dark);
+  font-size: 13.5px;
+}
+
+@media (max-width: 768px) {
+  .main-content.page-stage { padding: 12px 12px 24px !important; }
+  .purchase-title h1 { font-size: 19px; }
+  .purchase-panel, .panel { padding: 14px; border-radius: 14px; }
+}

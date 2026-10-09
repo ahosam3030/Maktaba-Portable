@@ -325,7 +325,9 @@ export function Labels() {
   }
 
   return (
-    <div className="panel labels-panel">
+    <div className="purchases-page labels-page">
+      <div className="purchase-title"><div><span className="eyebrow">المخزون</span><h1>ملصقات الباركود</h1><p>اختر الأصناف والحجم ثم اطبع على الرول الحراري</p></div></div>
+      <section className="purchase-panel labels-panel">
       <div className="panel-heading">
         <div>
           <h2>ملصقات الباركود</h2>
@@ -546,6 +548,7 @@ export function Labels() {
           </tbody>
         </table>
       </div>
+      </section>
     </div>
   );
 }
