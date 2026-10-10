@@ -394,11 +394,11 @@ export function Credit() {
           <div className="panel-heading">
             <div>
               <h2>العملاء</h2>
-              <p>اضغط «فتح الحساب» لعرض الفواتير والتحصيل</p>
+              <p>اضغط على البطاقة لفتح الحساب والفواتير</p>
             </div>
             <span className="count-badge">{filtered.length}</span>
           </div>
-          <div className="filter-bar" style={{ marginBottom: 12 }}>
+          <div className="filter-bar credit-search-bar">
             <label className="grow">
               بحث
               <input
@@ -409,73 +409,83 @@ export function Credit() {
               />
             </label>
           </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>العميل</th>
-                  <th>أول شراء</th>
-                  <th>آخر شراء</th>
-                  <th>آخر سداد</th>
-                  <th>فواتير</th>
-                  <th>المتبقي</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="muted">
-                      لا يوجد عملاء آجل بعد — أنشئ فاتورة بيع آجل من المبيعات
-                    </td>
-                  </tr>
-                )}
-                {filtered.map((c) => (
-                  <tr
-                    key={c.id}
-                    className={selected?.id === c.id ? 'credit-row-active' : undefined}
-                  >
-                    <td>
+          {filtered.length === 0 ? (
+            <div className="credit-empty-inline">
+              <p className="muted">لا يوجد عملاء آجل بعد — أنشئ فاتورة بيع آجل من المبيعات</p>
+            </div>
+          ) : (
+            <div className="credit-card-list">
+              {filtered.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={
+                    'credit-customer-card' + (selected?.id === c.id ? ' credit-customer-card--active' : '')
+                  }
+                  disabled={busy}
+                  onClick={() => void openCustomer(c.id)}
+                >
+                  <div className="credit-customer-card__top">
+                    <div className="credit-customer-card__name">
                       <strong>{c.name}</strong>
                       {c.phone ? (
-                        <div className="muted" dir="ltr">
+                        <span className="muted" dir="ltr">
                           {c.phone}
-                        </div>
+                        </span>
                       ) : null}
-                      <div className="muted credit-time-line" dir="ltr">
-                        فتح الحساب: {formatDateTime(c.accountOpenedAt || c.createdAt)}
-                      </div>
-                    </td>
-                    <td className="credit-dt" dir="ltr">{formatDateTime(c.firstSaleAt)}</td>
-                    <td className="credit-dt" dir="ltr">{formatDateTime(c.lastSaleAt)}</td>
-                    <td className="credit-dt" dir="ltr">{formatDateTime(c.lastPaymentAt)}</td>
-                    <td>{c.invoicesCount}</td>
-                    <td style={{ fontWeight: 700, color: c.balance > 0 ? '#b45309' : '#16815d' }}>
-                      {Number(c.balance).toFixed(2)}
-                    </td>
-                    <td>
-                      <button
-                        className="secondary-btn small"
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void openCustomer(c.id)}
-                      >
-                        فتح الحساب
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </div>
+                    <div
+                      className={
+                        'credit-customer-card__balance' +
+                        (c.balance > 0 ? ' credit-customer-card__balance--due' : ' credit-customer-card__balance--ok')
+                      }
+                    >
+                      <span className="credit-customer-card__balance-label">المتبقي</span>
+                      <span className="credit-customer-card__balance-value">
+                        {Number(c.balance).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="credit-customer-card__meta">
+                    <span>
+                      فواتير: <strong>{c.invoicesCount}</strong>
+                    </span>
+                    <span>
+                      مبيعات: <strong dir="ltr">{Number(c.salesTotal).toFixed(2)}</strong>
+                    </span>
+                    <span>
+                      مدفوع: <strong dir="ltr">{Number(c.paidTotal).toFixed(2)}</strong>
+                    </span>
+                  </div>
+                  <div className="credit-customer-card__times" dir="ltr">
+                    <div>
+                      <span className="credit-time-label">أول شراء</span>
+                      {formatDateTime(c.firstSaleAt)}
+                    </div>
+                    <div>
+                      <span className="credit-time-label">آخر شراء</span>
+                      {formatDateTime(c.lastSaleAt)}
+                    </div>
+                    <div>
+                      <span className="credit-time-label">آخر سداد</span>
+                      {formatDateTime(c.lastPaymentAt)}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* تفاصيل الحساب */}
         <section className="purchase-panel credit-panel-detail">
           {!selected && (
             <div className="credit-empty">
+              <div className="credit-empty-icon" aria-hidden>👤</div>
               <h2>حساب العميل</h2>
-              <p className="muted">اختر عميلاً من القائمة لعرض فواتيره وتسجيل التحصيل أو الطباعة</p>
+              <p className="muted">
+                اختر عميلاً من القائمة على اليمين لعرض الفواتير وسجل السداد وتسجيل التحصيل
+              </p>
             </div>
           )}
           {selected && (
