@@ -567,29 +567,20 @@ export function Credit() {
           )}
           {selected && (
             <>
-              <div className="panel-heading">
-                <div>
-                  <h2>{selected.name}</h2>
-                  <p>
-                    إجمالي المبيعات: <strong>{Number(selected.salesTotal).toFixed(2)}</strong>
-                    {' · '}
-                    المدفوع: <strong>{Number(selected.paidTotal).toFixed(2)}</strong>
-                    {' · '}
-                    المتبقي:{' '}
-                    <strong style={{ color: '#b45309' }}>{Number(selected.balance).toFixed(2)}</strong>
-                  </p>
-                  <p className="muted credit-time-meta" dir="ltr">
-                    فتح الحساب: {formatDateTime(selected.accountOpenedAt || selected.createdAt)}
-                    {' · '}
-                    أول شراء: {formatDateTime(selected.firstSaleAt)}
-                    {' · '}
-                    آخر شراء: {formatDateTime(selected.lastSaleAt)}
-                    {' · '}
-                    آخر سداد: {formatDateTime(selected.lastPaymentAt)}
-                  </p>
+              <div className="credit-detail-hero">
+                <div className="credit-detail-hero__main">
+                  <div className="credit-detail-hero__avatar" aria-hidden>
+                    {(selected.name || '?').trim().charAt(0)}
+                  </div>
+                  <div>
+                    <h2 className="credit-detail-hero__name">{selected.name}</h2>
+                    {selected.phone ? (
+                      <p className="credit-detail-hero__phone" dir="ltr">{selected.phone}</p>
+                    ) : null}
+                  </div>
                 </div>
                 <button
-                  className="secondary-btn small"
+                  className="secondary-btn"
                   type="button"
                   onClick={() => {
                     setSelected(null);
@@ -597,8 +588,58 @@ export function Credit() {
                     setPaySaleId('');
                   }}
                 >
-                  إغلاق الحساب
+                  إغلاق
                 </button>
+              </div>
+
+              <div className="credit-kpi-row">
+                <div className="credit-kpi">
+                  <span className="credit-kpi__label">المبيعات</span>
+                  <span className="credit-kpi__value" dir="ltr">{Number(selected.salesTotal).toFixed(2)}</span>
+                </div>
+                <div className="credit-kpi">
+                  <span className="credit-kpi__label">المدفوع</span>
+                  <span className="credit-kpi__value credit-kpi__value--ok" dir="ltr">{Number(selected.paidTotal).toFixed(2)}</span>
+                </div>
+                <div className="credit-kpi credit-kpi--emphasis">
+                  <span className="credit-kpi__label">المتبقي</span>
+                  <span
+                    className={
+                      'credit-kpi__value ' +
+                      (Number(selected.balance) > 0 ? 'credit-kpi__value--due' : 'credit-kpi__value--ok')
+                    }
+                    dir="ltr"
+                  >
+                    {Number(selected.balance).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="credit-timeline-row">
+                <div className="credit-timeline-item">
+                  <span className="credit-timeline-item__label">فتح الحساب</span>
+                  <span className="credit-timeline-item__value" dir="ltr">
+                    {formatDateTime(selected.accountOpenedAt || selected.createdAt)}
+                  </span>
+                </div>
+                <div className="credit-timeline-item">
+                  <span className="credit-timeline-item__label">أول شراء</span>
+                  <span className="credit-timeline-item__value" dir="ltr">
+                    {formatDateTime(selected.firstSaleAt)}
+                  </span>
+                </div>
+                <div className="credit-timeline-item">
+                  <span className="credit-timeline-item__label">آخر شراء</span>
+                  <span className="credit-timeline-item__value" dir="ltr">
+                    {formatDateTime(selected.lastSaleAt)}
+                  </span>
+                </div>
+                <div className="credit-timeline-item">
+                  <span className="credit-timeline-item__label">آخر سداد</span>
+                  <span className="credit-timeline-item__value" dir="ltr">
+                    {formatDateTime(selected.lastPaymentAt)}
+                  </span>
+                </div>
               </div>
 
               {/* تحصيل */}
