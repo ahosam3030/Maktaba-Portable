@@ -198,6 +198,58 @@ function printCreditInvoice(sale: SaleRow, customerName: string, customerPhone?:
   printHtml(buildInvoiceHtml(sale, customerName, customerPhone));
 }
 
+function buildPaymentReceiptHtml(
+  payment: PaymentRow,
+  customerName: string,
+  customerPhone: string | null | undefined,
+  customerBalance: number,
+  invoiceHint?: string,
+) {
+  const inv = loadInvoiceSettings();
+  const payAt = formatDateTime(payment.date);
+  const regAt = formatDateTime(payment.createdAt || payment.date);
+  return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title>إيصال تحصيل</title>
+<style>
+@page{margin:8mm}
+body{font-family:Tahoma,Arial,sans-serif;padding:14px;color:#111;font-size:13px}
+h1{margin:0 0 4px;font-size:20px}
+.sub{font-size:12px;color:#555;margin-bottom:12px}
+.box{border:1px solid #d1d5db;border-radius:10px;padding:12px;margin:10px 0;background:#f9fafb}
+.row{display:flex;justify-content:space-between;gap:12px;margin:6px 0;font-size:13px}
+.amt{font-size:28px;font-weight:800;color:#047857;text-align:center;margin:16px 0;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;background:#d1fae5;color:#047857;padding:4px 12px;border-radius:999px;font-weight:700;font-size:12px}
+.foot{margin-top:20px;font-size:11px;color:#666;text-align:center}
+@media print{body{padding:0}}
+</style></head><body>
+<h1>${escapeHtml(inv.brandTitle || 'المركز')}</h1>
+<div class="sub">${escapeHtml(inv.address || '')}${inv.phone ? ' · ' + escapeHtml(inv.phone) : ''}</div>
+<div style="text-align:center;margin:8px 0 4px"><span class="badge">إيصال تحصيل</span></div>
+<div class="amt" dir="ltr">${Number(payment.amount).toFixed(2)}</div>
+<div class="box">
+<div class="row"><span>العميل</span><strong>${escapeHtml(customerName)}</strong></div>
+<div class="row"><span>الهاتف</span><span dir="ltr">${escapeHtml(customerPhone || '—')}</span></div>
+<div class="row"><span>وقت السداد</span><span dir="ltr">${escapeHtml(payAt)}</span></div>
+<div class="row"><span>وقت التسجيل</span><span dir="ltr">${escapeHtml(regAt)}</span></div>
+<div class="row"><span>الطريقة</span><strong>${escapeHtml(paymentMethodLabel(payment.method))}</strong></div>
+${invoiceHint ? `<div class="row"><span>الفاتورة</span><span dir="ltr">${escapeHtml(invoiceHint)}</span></div>` : ''}
+${payment.notes ? `<div class="row"><span>ملاحظات</span><span>${escapeHtml(payment.notes)}</span></div>` : ''}
+<div class="row"><span>متبقي الحساب بعد التحصيل</span><strong dir="ltr" style="color:${customerBalance > 0 ? '#b45309' : '#047857'}">${Number(customerBalance).toFixed(2)}</strong></div>
+</div>
+<p class="foot">إيصال تحصيل آجل — ${escapeHtml(payAt)}</p>
+<script>window.onload=function(){setTimeout(function(){window.print()},200)}</script>
+</body></html>`;
+}
+
+function printPaymentReceipt(
+  payment: PaymentRow,
+  customerName: string,
+  customerPhone: string | null | undefined,
+  customerBalance: number,
+  invoiceHint?: string,
+) {
+  printHtml(buildPaymentReceiptHtml(payment, customerName, customerPhone, customerBalance, invoiceHint));
+}
+
 export function Credit() {
   const [list, setList] = useState<CustomerRow[]>([]);
   const [selected, setSelected] = useState<CustomerDetail | null>(null);
@@ -532,18 +584,18 @@ export function Credit() {
                       مدفوع: <strong dir="ltr">{Number(c.paidTotal).toFixed(2)}</strong>
                     </span>
                   </div>
-                  <div className="credit-customer-card__times" dir="ltr">
-                    <div>
+                  <div className="credit-customer-card__times">
+                    <div className="credit-mini-box">
                       <span className="credit-time-label">أول شراء</span>
-                      {formatDateTime(c.firstSaleAt)}
+                      <span className="credit-mini-box__val" dir="ltr">{formatDateTime(c.firstSaleAt)}</span>
                     </div>
-                    <div>
+                    <div className="credit-mini-box">
                       <span className="credit-time-label">آخر شراء</span>
-                      {formatDateTime(c.lastSaleAt)}
+                      <span className="credit-mini-box__val" dir="ltr">{formatDateTime(c.lastSaleAt)}</span>
                     </div>
-                    <div>
+                    <div className="credit-mini-box">
                       <span className="credit-time-label">آخر سداد</span>
-                      {formatDateTime(c.lastPaymentAt)}
+                      <span className="credit-mini-box__val" dir="ltr">{formatDateTime(c.lastPaymentAt)}</span>
                     </div>
                   </div>
                 </button>
@@ -733,16 +785,59 @@ export function Credit() {
                           <th>المبلغ</th>
                           <th>الطريقة</th>
                           <th>ملاحظات</th>
+                          <th>طباعة</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(selected.payments || []).map((p) => (
                           <tr key={p.id}>
-                            <td className="credit-dt" dir="ltr">{formatDateTime(p.date)}</td>
-                            <td className="credit-dt" dir="ltr">{formatDateTime(p.createdAt || p.date)}</td>
-                            <td style={{ fontWeight: 600, color: '#16815d' }}>{Number(p.amount).toFixed(2)}</td>
-                            <td>{paymentMethodLabel(p.method)}</td>
-                            <td className="muted">{p.notes || '—'}</td>
+                            <td>
+                              <span className="credit-chip credit-chip--time" dir="ltr">
+                                {formatDateTime(p.date)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="credit-chip credit-chip--time" dir="ltr">
+                                {formatDateTime(p.createdAt || p.date)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="credit-chip credit-chip--money" dir="ltr">
+                                {Number(p.amount).toFixed(2)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="credit-chip credit-chip--method">
+                                {paymentMethodLabel(p.method)}
+                              </span>
+                            </td>
+                            <td>
+                              {p.notes ? (
+                                <span className="credit-chip">{p.notes}</span>
+                              ) : (
+                                '—'
+                              )}
+                            </td>
+                            <td>
+                              <button
+                                className="secondary-btn small"
+                                type="button"
+                                onClick={() => {
+                                  const invHint = p.saleId
+                                    ? selected.sales.find((s) => s.id === p.saleId)?.invoiceNumber
+                                    : undefined;
+                                  printPaymentReceipt(
+                                    p,
+                                    selected.name,
+                                    selected.phone,
+                                    Number(selected.balance),
+                                    invHint,
+                                  );
+                                }}
+                              >
+                                طباعة الإيصال
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -788,9 +883,9 @@ export function Credit() {
                           openSale?.id === s.id || paySaleId === s.id ? 'credit-row-active' : undefined
                         }
                       >
-                        <td dir="ltr">{s.invoiceNumber}</td>
-                        <td className="credit-dt" dir="ltr">{formatDateTime(s.saleDate)}</td>
-                        <td className="credit-dt" dir="ltr">{formatDateTime(s.createdAt || s.saleDate)}</td>
+                        <td><span className="credit-chip credit-chip--id" dir="ltr">{s.invoiceNumber}</span></td>
+                        <td><span className="credit-chip credit-chip--time" dir="ltr">{formatDateTime(s.saleDate)}</span></td>
+                        <td><span className="credit-chip credit-chip--time" dir="ltr">{formatDateTime(s.createdAt || s.saleDate)}</span></td>
                         <td>{Number(s.remaining) > 0.001 ? daysSince(s.saleDate) : '—'}</td>
                         <td>{Number(s.total).toFixed(2)}</td>
                         <td>{Number(s.paidAmount).toFixed(2)}</td>
