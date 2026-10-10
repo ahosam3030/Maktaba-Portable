@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
 import { IconUsers, IconMoney, IconClock, IconRefresh, IconUser, IconReceipt } from './Icons';
@@ -209,18 +209,53 @@ export function Credit() {
   const [payDateTime, setPayDateTime] = useState(() => toLocalInputValue(new Date()));
   const [paySaleId, setPaySaleId] = useState('');
   const [q, setQ] = useState('');
+  const autoOpenedRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
       const rows = await apiRequest<CustomerRow[]>('/customers');
-      setList(Array.isArray(rows) ? rows : []);
+      const next = Array.isArray(rows) ? rows : [];
+      setList(next);
+      return next;
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'تعذر التحميل');
+      return [] as CustomerRow[];
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    void (async () => {
+      const rows = await load();
+      if (!autoOpenedRef.current && rows.length > 0) {
+        autoOpenedRef.current = true;
+        // فتح أول عميل تلقائياً لعرض التفاصيل مباشرة
+        const first = rows[0];
+        setSelected({ ...first, sales: [], payments: [] });
+        setBusy(true);
+        try {
+          const d = await apiRequest<CustomerDetail>(`/customers/${first.id}`);
+          setSelected({
+            ...d,
+            sales: (d.sales || []).map((s) => ({
+              ...s,
+              total: Number(s.total),
+              paidAmount: Number(s.paidAmount),
+              remaining: Number(
+                s.remaining != null
+                  ? s.remaining
+                  : Math.max(0, Number(s.total) - Number(s.paidAmount)),
+              ),
+            })),
+            payments: d.payments || [],
+          });
+          setPayAmount(Number(d.balance) > 0 ? String(Number(d.balance).toFixed(2)) : '');
+        } catch (e) {
+          setMsg(e instanceof Error ? e.message : 'تعذر فتح الحساب');
+        } finally {
+          setBusy(false);
+        }
+      }
+    })();
   }, [load]);
 
   const openInvoices = useMemo(() => {
@@ -229,14 +264,41 @@ export function Credit() {
   }, [selected]);
 
   async function openCustomer(id: string) {
-    setBusy(true);
     setMsg('');
     setOpenSale(null);
     setPaySaleId('');
+    // عرض فوري من القائمة ثم تحديث التفاصيل من الخادم
+    const fromList = list.find((c) => c.id === id);
+    if (fromList) {
+      setSelected({
+        ...fromList,
+        sales: selected?.id === id ? selected.sales : [],
+        payments: selected?.id === id ? selected.payments : [],
+      });
+      setPayAmount(fromList.balance > 0 ? String(Number(fromList.balance).toFixed(2)) : '');
+    }
+    setBusy(true);
     try {
       const d = await apiRequest<CustomerDetail>(`/customers/${id}`);
-      setSelected(d);
-      setPayAmount(d.balance > 0 ? String(Number(d.balance).toFixed(2)) : '');
+      setSelected({
+        ...d,
+        sales: (d.sales || []).map((s) => ({
+          ...s,
+          total: Number(s.total),
+          paidAmount: Number(s.paidAmount),
+          remaining: Number(
+            s.remaining != null
+              ? s.remaining
+              : Math.max(0, Number(s.total) - Number(s.paidAmount)),
+          ),
+        })),
+        payments: d.payments || [],
+      });
+      setPayAmount(Number(d.balance) > 0 ? String(Number(d.balance).toFixed(2)) : '');
+      if ((d.sales || []).length) {
+        const due = (d.sales || []).find((s) => Number(s.remaining) > 0.001);
+        if (due) setPaySaleId(due.id);
+      }
     } catch (e) {
       setMsg(e instanceof Error ? e.message : 'تعذر فتح الحساب');
     } finally {
@@ -499,7 +561,7 @@ export function Credit() {
               </div>
               <h2>حساب العميل</h2>
               <p className="muted">
-                اختر عميلاً من القائمة على اليمين لعرض الفواتير وسجل السداد وتسجيل التحصيل
+                {busy ? 'جارٍ تحميل بيانات العملاء…' : 'اضغط على أي عميل من القائمة لعرض فواتيره وتحصيلاته فوراً'}
               </p>
             </div>
           )}
@@ -652,10 +714,17 @@ export function Credit() {
 
               {/* جدول الفواتير */}
               <div className="credit-invoices-head">
-                <h3>فواتير العميل — وقت الشراء والتسجيل</h3>
+                <h3 className="heading-with-icon"><IconReceipt size={18} /> فواتير العميل</h3>
                 <span className="count-badge">{selected.sales.length}</span>
               </div>
-              <div className="table-wrap">
+              {busy && selected.sales.length === 0 ? (
+                <p className="muted credit-collect-hint">جارٍ تحميل الفواتير…</p>
+              ) : null}
+              {!busy && selected.sales.length === 0 ? (
+                <p className="muted credit-collect-hint">لا توجد فواتير مسجّلة لهذا العميل.</p>
+              ) : null}
+              {selected.sales.length > 0 ? (
+              <div className="table-wrap credit-invoices-table">
                 <table>
                   <thead>
                     <tr>
@@ -741,6 +810,7 @@ export function Credit() {
                   </tbody>
                 </table>
               </div>
+              ) : null}
 
               {/* تفاصيل فاتورة */}
               {openSale ? (
