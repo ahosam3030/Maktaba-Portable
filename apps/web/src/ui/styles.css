@@ -6010,3 +6010,174 @@ button.danger-outline-btn {
 .credit-payments-block {
   margin: 12px 0 16px;
 }
+
+
+/* ===== حركات وتأثيرات احترافية ===== */
+@keyframes pageFadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes statsFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes iconSpin {
+  to { transform: rotate(360deg); }
+}
+@keyframes softPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(15, 118, 110, 0.25); }
+  50% { box-shadow: 0 0 0 6px rgba(15, 118, 110, 0); }
+}
+
+.page-enter {
+  animation: pageFadeUp 0.35s ease-out both;
+}
+.stats-enter .pur-stat {
+  animation: statsFade 0.4s ease-out both;
+}
+.stats-enter .pur-stat:nth-child(1) { animation-delay: 0.05s; }
+.stats-enter .pur-stat:nth-child(2) { animation-delay: 0.1s; }
+.stats-enter .pur-stat:nth-child(3) { animation-delay: 0.15s; }
+
+.page-title-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.page-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #0f766e, #14b8a6);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
+}
+.heading-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.icon-spin {
+  animation: iconSpin 0.8s linear infinite;
+}
+
+.pur-stat--icon {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pur-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.pur-stat-icon--teal { background: #e6f7f3; color: #0f766e; }
+.pur-stat-icon--amber { background: #fff7ed; color: #c2410c; }
+.pur-stat-icon--rose { background: #fff1f2; color: #e11d48; }
+
+.primary-btn, .secondary-btn {
+  transition: transform 0.12s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.primary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.28);
+}
+.primary-btn:active:not(:disabled),
+.secondary-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+.secondary-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.sidebar nav button,
+.sidebar nav a {
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease, padding 0.15s ease;
+}
+.sidebar nav button:hover,
+.sidebar nav a:hover {
+  transform: translateX(-2px);
+}
+
+.credit-customer-card {
+  animation: cardIn 0.3s ease-out both;
+}
+.credit-card-list .credit-customer-card:nth-child(1) { animation-delay: 0.02s; }
+.credit-card-list .credit-customer-card:nth-child(2) { animation-delay: 0.06s; }
+.credit-card-list .credit-customer-card:nth-child(3) { animation-delay: 0.1s; }
+.credit-card-list .credit-customer-card:nth-child(4) { animation-delay: 0.14s; }
+.credit-card-list .credit-customer-card:nth-child(5) { animation-delay: 0.18s; }
+
+.credit-customer-card__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #0f766e, #2dd4bf);
+  color: #fff;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.25);
+}
+.credit-customer-card__top {
+  align-items: center;
+}
+.credit-customer-card:active {
+  transform: scale(0.99);
+}
+.credit-customer-card--active {
+  animation: softPulse 2s ease-in-out infinite;
+}
+
+.credit-empty-icon--svg {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: #e8f4f1;
+  color: #0f766e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.purchase-panel, .panel, .card {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.table-wrap tbody tr {
+  transition: background 0.12s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .stats-enter .pur-stat,
+  .credit-customer-card,
+  .icon-spin,
+  .credit-customer-card--active {
+    animation: none !important;
+  }
+  .primary-btn:hover:not(:disabled),
+  .secondary-btn:hover:not(:disabled),
+  .sidebar nav button:hover {
+    transform: none;
+  }
+}

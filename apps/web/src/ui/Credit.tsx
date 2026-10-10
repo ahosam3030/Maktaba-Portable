@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
+import { IconUsers, IconMoney, IconClock, IconRefresh, IconUser, IconReceipt } from './Icons';
 
 type SaleItem = { productName: string; quantity: number; unitPrice: number; lineTotal: number; unit?: string | null };
 type SaleRow = {
@@ -352,31 +353,40 @@ export function Credit() {
 
   return (
     <div className="purchases-page credit-page">
-      <div className="purchase-title">
+      <div className="purchase-title page-enter">
         <div>
           <span className="eyebrow">المالية</span>
-          <h1>الآجل والتحصيل</h1>
+          <h1 className="page-title-with-icon">
+            <span className="page-title-icon" aria-hidden>
+              <IconMoney size={28} />
+            </span>
+            الآجل والتحصيل
+          </h1>
           <p>كل عملية لها تاريخ ووقت دقيق · وقت الشراء · وقت السداد · عمر الدين</p>
         </div>
-        <button className="secondary-btn" type="button" disabled={busy} onClick={() => void load()}>
+        <button className="secondary-btn btn-with-icon" type="button" disabled={busy} onClick={() => void load()}>
+          <IconRefresh size={16} className={busy ? 'icon-spin' : undefined} />
           تحديث
         </button>
       </div>
 
-      <div className="pur-stats">
-        <div className="pur-stat">
+      <div className="pur-stats stats-enter">
+        <div className="pur-stat pur-stat--icon">
+          <span className="pur-stat-icon pur-stat-icon--teal"><IconUsers size={22} /></span>
           <div>
             <div className="label">عملاء في القائمة</div>
             <div className="value">{filtered.length}</div>
           </div>
         </div>
-        <div className="pur-stat">
+        <div className="pur-stat pur-stat--icon">
+          <span className="pur-stat-icon pur-stat-icon--amber"><IconClock size={22} /></span>
           <div>
             <div className="label">عليهم مبالغ</div>
             <div className="value" style={{ color: debtors ? '#b45309' : undefined }}>{debtors}</div>
           </div>
         </div>
-        <div className="pur-stat">
+        <div className="pur-stat pur-stat--icon">
+          <span className="pur-stat-icon pur-stat-icon--rose"><IconMoney size={22} /></span>
           <div>
             <div className="label">إجمالي المتبقي</div>
             <div className="value" style={{ color: totalDebt > 0 ? '#b45309' : undefined }}>
@@ -393,7 +403,7 @@ export function Credit() {
         <section className="purchase-panel credit-panel-list">
           <div className="panel-heading">
             <div>
-              <h2>العملاء</h2>
+              <h2 className="heading-with-icon"><IconUsers size={18} /> العملاء</h2>
               <p>اضغط على البطاقة لفتح الحساب والفواتير</p>
             </div>
             <span className="count-badge">{filtered.length}</span>
@@ -426,6 +436,9 @@ export function Credit() {
                   onClick={() => void openCustomer(c.id)}
                 >
                   <div className="credit-customer-card__top">
+                    <div className="credit-customer-card__avatar" aria-hidden>
+                      {(c.name || '?').trim().charAt(0)}
+                    </div>
                     <div className="credit-customer-card__name">
                       <strong>{c.name}</strong>
                       {c.phone ? (
@@ -481,7 +494,9 @@ export function Credit() {
         <section className="purchase-panel credit-panel-detail">
           {!selected && (
             <div className="credit-empty">
-              <div className="credit-empty-icon" aria-hidden>👤</div>
+              <div className="credit-empty-icon credit-empty-icon--svg" aria-hidden>
+                <IconUser size={40} />
+              </div>
               <h2>حساب العميل</h2>
               <p className="muted">
                 اختر عميلاً من القائمة على اليمين لعرض الفواتير وسجل السداد وتسجيل التحصيل
@@ -526,7 +541,7 @@ export function Credit() {
 
               {/* تحصيل */}
               <div className="credit-collect-card">
-                <div className="credit-collect-title">تسجيل تحصيل</div>
+                <div className="credit-collect-title heading-with-icon"><IconMoney size={18} /> تسجيل تحصيل</div>
                 <div className="credit-collect-grid">
                   <label>
                     على أي فاتورة؟
