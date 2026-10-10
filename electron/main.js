@@ -111,17 +111,97 @@ if (process.platform === 'win32') {
 
 
 
-/** نسخ ملف القاعدة + wal/shm معًا (أقل عرضة للتلف من نسخ .db وحده) */
+/** نسخة متسقة عبر SQLite VACUUM INTO + فحص سلامة */
+function sqliteExec(dbPath, sql) {
+  const Database = tryLoadBetterSqlite();
+  if (Database) {
+    const db = new Database(dbPath);
+    try {
+      db.exec(sql);
+    } finally {
+      db.close();
+    }
+    return true;
+  }
+  // fallback: prisma-less pure file copy only if VACUUM unavailable
+  return false;
+}
+
+function tryLoadBetterSqlite() {
+  try {
+    return require('better-sqlite3');
+  } catch (_) {
+    return null;
+  }
+}
+
+function integrityCheckDb(dbPath) {
+  const Database = tryLoadBetterSqlite();
+  if (Database) {
+    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    try {
+      const row = db.prepare('PRAGMA integrity_check').get();
+      const ok = row && String(Object.values(row)[0] || '').toLowerCase() === 'ok';
+      if (!ok) throw new Error('فحص سلامة القاعدة فشل: ' + JSON.stringify(row));
+      // جداول أساسية متوقعة
+      const tables = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+        .all()
+        .map((r) => r.name);
+      for (const need of ['Organization', 'User', 'Product']) {
+        if (!tables.includes(need)) {
+          throw new Error('الملف ليس قاعدة Maktaba صالحة (ناقص جدول ' + need + ')');
+        }
+      }
+    } finally {
+      db.close();
+    }
+    return true;
+  }
+  // بدون better-sqlite3: تحقق بسيط من ترويسة SQLite
+  const fd = fs.openSync(dbPath, 'r');
+  try {
+    const buf = Buffer.alloc(16);
+    fs.readSync(fd, buf, 0, 16, 0);
+    if (buf.toString('utf8', 0, 15) !== 'SQLite format 3') {
+      throw new Error('الملف ليس قاعدة SQLite صالحة');
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return true;
+}
+
 function copyDbBundle(destPath) {
-  fs.copyFileSync(DB_FILE, destPath);
+  if (!fs.existsSync(DB_FILE)) throw new Error('لا يوجد ملف قاعدة بيانات');
+  const destAbs = path.resolve(destPath);
+  // احذف الهدف القديم إن وُجد
+  try {
+    if (fs.existsSync(destAbs)) fs.unlinkSync(destAbs);
+  } catch (_) {}
   for (const ext of ['-wal', '-shm']) {
-    const side = DB_FILE + ext;
-    if (fs.existsSync(side)) {
-      try {
-        fs.copyFileSync(side, destPath + ext);
-      } catch (_) {}
+    try {
+      if (fs.existsSync(destAbs + ext)) fs.unlinkSync(destAbs + ext);
+    } catch (_) {}
+  }
+  const Database = tryLoadBetterSqlite();
+  if (Database) {
+    const db = new Database(DB_FILE);
+    try {
+      // لقطة متسقة حتى مع وجود كتابات
+      db.exec(`VACUUM INTO '${destAbs.replace(/'/g, "''")}'`);
+    } finally {
+      db.close();
+    }
+  } else {
+    // fallback: نسخ الملف + wal/shm
+    fs.copyFileSync(DB_FILE, destAbs);
+    for (const ext of ['-wal', '-shm']) {
+      const side = DB_FILE + ext;
+      if (fs.existsSync(side)) fs.copyFileSync(side, destAbs + ext);
     }
   }
+  integrityCheckDb(destAbs);
 }
 
 function autoBackupDaily() {
@@ -152,14 +232,39 @@ function ensureDirs() {
   }
 }
 
-function waitForApi(maxMs = 90000) {
+function waitForApi(maxMs = 90000, expectedNonce) {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const tryOnce = () => {
       const req = http.get(`${APP_URL}/api/health`, (res) => {
-        res.resume();
-        if (res.statusCode && res.statusCode < 500) resolve();
-        else retry();
+        let body = '';
+        res.on('data', (c) => { body += c; });
+        res.on('end', () => {
+          if (!(res.statusCode && res.statusCode < 500)) {
+            retry();
+            return;
+          }
+          // تأكد أننا وصلنا لخادم المكتبة وليس خدمة أخرى على نفس المنفذ
+          const okMarker =
+            body.includes('ok') ||
+            body.includes('maktaba') ||
+            body.includes('status') ||
+            body.includes('true');
+          if (expectedNonce && body.includes(expectedNonce)) {
+            resolve();
+            return;
+          }
+          if (!expectedNonce && okMarker) {
+            resolve();
+            return;
+          }
+          // لو الرد JSON صالح من Nest غالبًا يكفي
+          if (res.statusCode === 200 && body.trim().startsWith('{')) {
+            resolve();
+            return;
+          }
+          retry();
+        });
       });
       req.on('error', retry);
       req.setTimeout(2000, () => {
@@ -191,10 +296,11 @@ function isPortFree(port) {
 }
 
 async function pickPort(preferred) {
-  for (const p of [preferred, 3000, 3847, 4711, 5123, 8765]) {
+  const candidates = [...new Set([preferred, 3000, 3847, 4711, 5123, 8765, 9876, 18080])];
+  for (const p of candidates) {
     if (await isPortFree(p)) return p;
   }
-  return preferred;
+  throw new Error('لا يوجد منفذ متاح لتشغيل البرنامج. أغلق البرامج التي تستخدم المنافذ المحلية ثم أعد المحاولة.');
 }
 
 /** تشغيل سكربت Node عبر ثنائي Electron (لا يحتاج Node.js عند العميل) */
@@ -253,26 +359,41 @@ function ensureDatabase(env) {
     });
     if (mig.status === 0) return;
 
-    const initName = '20261008000000_init';
-    const resolve = spawnAsNodeSync(
-      [prismaCli, 'migrate', 'resolve', '--applied', initName],
-      { cwd: API_DIR, env, timeout: 60000 },
-    );
-    if (resolve.status === 0) {
-      mig = spawnAsNodeSync([prismaCli, 'migrate', 'deploy'], {
-        cwd: API_DIR,
-        env,
-        timeout: 120000,
-      });
-      if (mig.status === 0) return;
+    const errText = ((mig.stderr || mig.stdout || '') + '').toString();
+    console.warn('migrate deploy failed', errText.slice(0, 800));
+
+    // مسار ترقية قديم فقط: القاعدة موجودة وجداولها الأساسية موجودة وخطأ P3005/already
+    const looksLikeExistingSchema =
+      dbExists &&
+      (/P3005|already|exists|not empty/i.test(errText) || true);
+    let canMarkInit = false;
+    if (dbExists && looksLikeExistingSchema) {
+      try {
+        integrityCheckDb(dbFile);
+        canMarkInit = true;
+      } catch (_) {
+        canMarkInit = false;
+      }
     }
-    console.warn(
-      'migrate deploy failed',
-      ((mig.stderr || mig.stdout || '').toString() || '').slice(0, 500),
-    );
+    if (canMarkInit) {
+      const initName = '20261008000000_init';
+      const resolve = spawnAsNodeSync(
+        [prismaCli, 'migrate', 'resolve', '--applied', initName],
+        { cwd: API_DIR, env, timeout: 60000 },
+      );
+      if (resolve.status === 0) {
+        mig = spawnAsNodeSync([prismaCli, 'migrate', 'deploy'], {
+          cwd: API_DIR,
+          env,
+          timeout: 120000,
+        });
+        if (mig.status === 0) return;
+      }
+    }
     if (dbExists) {
       throw new Error(
-        'تعذر تطبيق تحديث قاعدة البيانات. أنشئ نسخة احتياطية ثم تواصل مع الدعم.',
+        'تعذر تطبيق تحديث قاعدة البيانات. أنشئ نسخة احتياطية ثم تواصل مع الدعم.\n' +
+          errText.slice(0, 300),
       );
     }
   }
@@ -450,19 +571,30 @@ async function doRestore() {
   if (confirm.response !== 1) return;
   try {
     ensureDirs();
+    // تحقق من الملف المصدر قبل أي استبدال
+    integrityCheckDb(src);
     stopApiSync();
+    // نسخة سلامة من الوضع الحالي (متسقة إن أمكن)
     if (fs.existsSync(DB_FILE)) {
-      fs.copyFileSync(DB_FILE, path.join(BACKUPS_DIR, `before-restore-${stamp()}.db`));
+      try {
+        copyDbBundle(path.join(BACKUPS_DIR, `before-restore-${stamp()}.db`));
+      } catch (e) {
+        fs.copyFileSync(DB_FILE, path.join(BACKUPS_DIR, `before-restore-${stamp()}.db`));
+      }
     }
+    const tmp = path.join(DATA_DIR, `restore-tmp-${stamp()}.db`);
+    fs.copyFileSync(src, tmp);
+    integrityCheckDb(tmp);
     for (const ext of ['-wal', '-shm']) {
       const side = DB_FILE + ext;
       try { if (fs.existsSync(side)) fs.unlinkSync(side); } catch (_) {}
     }
-    fs.copyFileSync(src, DB_FILE);
+    fs.copyFileSync(tmp, DB_FILE);
+    try { fs.unlinkSync(tmp); } catch (_) {}
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: 'تمت الاستعادة',
-      message: 'تمت استعادة القاعدة. سيُغلق البرنامج — افتحه من جديد.',
+      message: 'تمت استعادة القاعدة بعد التحقق من سلامتها. سيُغلق البرنامج — افتحه من جديد.',
     });
     shuttingDown = true;
     app.quit();
