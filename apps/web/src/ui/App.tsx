@@ -19,6 +19,7 @@ import { Purchases } from './Purchases';
 import { Inventory } from './Inventory';
 import { Sales } from './Sales';
 import { Credit } from './Credit';
+import { Assets } from './Assets';
 import { Printing } from './Printing';
 import { Accounting } from './Accounting';
 import { Settings } from './Settings';
@@ -61,7 +62,7 @@ export function App() {
   const [sessionUser, setSessionUser] = useState(getStoredUser());
   const [sessionOrg, setSessionOrg] = useState(getStoredOrganization());
   const [activeSection, setActiveSection] = useState<
-    'dashboard' | 'purchases' | 'inventory' | 'sales' | 'credit' | 'printing' | 'accounting' | 'reports' | 'settings' | 'labels' | 'dayclose'
+    'dashboard' | 'purchases' | 'inventory' | 'sales' | 'credit' | 'printing' | 'accounting' | 'reports' | 'settings' | 'labels' | 'dayclose' | 'assets'
   >('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
@@ -523,6 +524,11 @@ useEffect(() => {
               <SectionIcon name="accounting" className="nav-icon" /><span>الخزينة</span>
             </button>
           )}
+          {hasPermission(sessionUser, 'accounting') && (
+            <button type="button" tabIndex={-1} className={activeSection === 'assets' ? 'active' : ''} onClick={() => setActiveSection('assets')}>
+              <SectionIcon name="inventory" className="nav-icon" /><span>الأصول</span>
+            </button>
+          )}
           {hasPermission(sessionUser, 'reports') && (
             <button type="button" tabIndex={-1} className={activeSection === 'reports' ? 'active' : ''} onClick={() => setActiveSection('reports')}>
               <SectionIcon name="reports" className="nav-icon" /><span>التقارير</span>
@@ -726,6 +732,8 @@ useEffect(() => {
           <Printing />
         ) : activeSection === 'accounting' && hasPermission(sessionUser, 'accounting') ? (
           <Accounting />
+        ) : activeSection === 'assets' && hasPermission(sessionUser, 'accounting') ? (
+          <Assets />
         ) : activeSection === 'reports' && hasPermission(sessionUser, 'reports') ? (
           <Reports />
         ) : activeSection === 'settings' && isLoggedIn ? (

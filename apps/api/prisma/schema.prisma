@@ -31,6 +31,7 @@ model Organization {
   cashTransactions CashTransaction[]
   services         Service[]
   serviceReceipts  ServiceReceipt[]
+  assets           Asset[]
 }
 
 model Branch {
@@ -517,4 +518,33 @@ model SupportTicket {
 
   @@index([organizationId, createdAt])
   @@index([organizationId, status])
+}
+
+
+/// أصول المكان: معدات وأجهزة وتشغيل
+model Asset {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  category       String       @default("معدات")
+  /// تاريخ الشراء / الإضافة
+  purchaseDate   DateTime     @default(now())
+  /// تكلفة الشراء
+  cost           Decimal      @default(0)
+  quantity       Int          @default(1)
+  /// ACTIVE | MAINTENANCE | SOLD | SCRAPPED
+  status         String       @default("ACTIVE")
+  serialNumber   String?
+  location       String?
+  supplierName   String?
+  notes          String?
+  /// هل سُجّلت كمصروف في الخزينة عند الإضافة
+  postedToCash   Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, category])
+  @@index([organizationId, purchaseDate])
 }

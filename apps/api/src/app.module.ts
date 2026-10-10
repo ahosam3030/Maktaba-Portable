@@ -17,6 +17,7 @@ import { InventoryController } from './inventory.controller';
 import { SalesController } from './sales.controller';
 import { CustomersController } from './customers.controller';
 import { AccountingController } from './accounting.controller';
+import { AssetsController } from './assets.controller';
 import { UsersController } from './users.controller';
 import { ReportsController } from './reports.controller';
 import { ServicesController, ServiceReceiptsController } from './services.controller';
@@ -64,6 +65,7 @@ if (!jwtSecret || WEAK_JWT.has(jwtSecret) || jwtSecret.length < 32) {
     SalesController,
     CustomersController,
     AccountingController,
+    AssetsController,
     ServicesController,
     ServiceReceiptsController,
     AuditController,
