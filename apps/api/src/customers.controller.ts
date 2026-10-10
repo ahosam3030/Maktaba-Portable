@@ -13,6 +13,7 @@ import { PrismaService } from './prisma.service';
 import { AuthUser, CurrentUser, JwtAuthGuard, PermissionsGuard, RequirePermission } from './auth';
 import { AuditService } from './audit.service';
 import { roundMoney } from './money.util';
+import { allocatePayment } from './credit-payment.util';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -164,22 +165,26 @@ export class CustomersController {
           orderBy: { saleDate: 'asc' },
         });
       }
-      let remaining = roundMoney(amount);
+      const plan = allocatePayment(
+        openSales.map((s) => ({
+          id: s.id,
+          remaining: roundMoney(Number(s.total) - Number(s.paidAmount)),
+        })),
+        amount,
+        targetSaleId,
+      );
       const applied: Array<{ saleId: string; invoiceNumber: string; applied: number }> = [];
-      for (const sale of openSales) {
-        if (remaining <= 0) break;
-        const due = roundMoney(Number(sale.total) - Number(sale.paidAmount));
-        if (due <= 0) continue;
-        const apply = Math.min(due, remaining);
-        const newPaid = roundMoney(Number(sale.paidAmount) + apply);
+      for (const row of plan.allocations) {
+        const sale = openSales.find((s) => s.id === row.saleId)!;
+        const newPaid = roundMoney(Number(sale.paidAmount) + row.applied);
         const status = newPaid >= Number(sale.total) - 0.001 ? 'PAID' : 'PARTIAL';
         await tx.sale.update({
           where: { id: sale.id },
           data: { paidAmount: new Prisma.Decimal(newPaid), paymentStatus: status },
         });
-        applied.push({ saleId: sale.id, invoiceNumber: sale.invoiceNumber, applied: apply });
-        remaining = roundMoney(remaining - apply);
+        applied.push({ saleId: sale.id, invoiceNumber: sale.invoiceNumber, applied: row.applied });
       }
+      const remaining = plan.leftover;
       if (applied.length === 0) {
         throw new BadRequestException('لا توجد فواتير آجل مفتوحة لهذا العميل');
       }

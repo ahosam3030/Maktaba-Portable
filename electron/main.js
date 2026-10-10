@@ -412,22 +412,54 @@ function ensureDatabase(env) {
 }
 
 function stopApiSync() {
-  if (!apiProcess || apiProcess.killed) return;
+  if (!apiProcess) return;
+  const proc = apiProcess;
+  const pid = proc.pid;
+  let exited = false;
   try {
-    if (process.platform === 'win32' && apiProcess.pid) {
-      spawn('taskkill', ['/pid', String(apiProcess.pid), '/f', '/t'], { shell: true, windowsHide: true });
-    } else {
-      apiProcess.kill('SIGTERM');
-    }
-  } catch (_) {}
-  apiProcess = null;
-  // انتظر تحرير الملف
-  try {
-    require('child_process').execSync(process.platform === 'win32' ? 'timeout /t 2 /nobreak >nul' : 'sleep 2', {
-      stdio: 'ignore',
-      windowsHide: true,
+    proc.once('exit', () => {
+      exited = true;
     });
   } catch (_) {}
+
+  // 1) إغلاق منظم
+  try {
+    if (process.platform === 'win32' && pid) {
+      // بدون /f أولًا
+      spawn('taskkill', ['/pid', String(pid), '/t'], { shell: true, windowsHide: true });
+    } else {
+      proc.kill('SIGTERM');
+    }
+  } catch (_) {}
+
+  const deadline = Date.now() + 4000;
+  while (!exited && Date.now() < deadline) {
+    try {
+      require('child_process').execSync(
+        process.platform === 'win32' ? 'timeout /t 1 /nobreak >nul' : 'sleep 0.4',
+        { stdio: 'ignore', windowsHide: true },
+      );
+    } catch (_) {}
+    if (proc.killed) break;
+  }
+
+  // 2) إنهاء قسري إن لزم
+  if (!exited && !proc.killed) {
+    try {
+      if (process.platform === 'win32' && pid) {
+        spawn('taskkill', ['/pid', String(pid), '/f', '/t'], { shell: true, windowsHide: true });
+      } else {
+        proc.kill('SIGKILL');
+      }
+    } catch (_) {}
+    try {
+      require('child_process').execSync(
+        process.platform === 'win32' ? 'timeout /t 1 /nobreak >nul' : 'sleep 0.5',
+        { stdio: 'ignore', windowsHide: true },
+      );
+    } catch (_) {}
+  }
+  apiProcess = null;
 }
 
 async function startApi(cfg) {
@@ -435,8 +467,12 @@ async function startApi(cfg) {
   PORT = await pickPort(Number(cfg.port) || 3000);
   cfg.port = PORT;
   try {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8');
-  } catch (_) {}
+    const tmpCfg = CONFIG_FILE + '.tmp';
+    fs.writeFileSync(tmpCfg, JSON.stringify(cfg, null, 2), 'utf8');
+    fs.renameSync(tmpCfg, CONFIG_FILE);
+  } catch (e) {
+    console.warn('config write failed', e && e.message ? e.message : e);
+  }
   APP_URL = `http://127.0.0.1:${PORT}`;
 
   const env = {
@@ -455,21 +491,27 @@ async function startApi(cfg) {
   };
 
   try {
+    // لا نكتب أسرار JWT/License في .env داخل مجلد التطبيق.
+    // الأسرار تُمرَّر عبر env للعملية فقط، وتُحفظ في config.json ضمن مجلد بيانات المستخدم.
     const envPath = path.join(API_DIR, '.env');
-    fs.writeFileSync(
-      envPath,
-      [
-        `DATABASE_URL="${dbUrl}"`,
-        `PORT=${PORT}`,
-        `JWT_SECRET="${cfg.jwtSecret}"`,
-        `LICENSE_SECRET="${cfg.licenseSecret}"`,
-        `UPLOADS_DIR="${String(UPLOADS_DIR).replace(/\\\\/g, '/')}"`,
-        'NODE_ENV=production',
-        'ALLOW_LICENSE_ISSUE=NO',
-      ].join('\n') + '\n',
-      'utf8',
-    );
-  } catch (_) {}
+    const lines = [
+      `DATABASE_URL="${dbUrl}"`,
+      `PORT=${PORT}`,
+      `UPLOADS_DIR="${String(UPLOADS_DIR).replace(/\\/g, '/')}"`,
+      'NODE_ENV=production',
+      'ALLOW_LICENSE_ISSUE=NO',
+    ];
+    // للتطوير المحلي فقط: إن لم يكن التطبيق مغلّفًا، اكتب الأسرار لتسهيل تشغيل API يدويًا
+    if (!app.isPackaged) {
+      lines.push(`JWT_SECRET="${cfg.jwtSecret}"`);
+      lines.push(`LICENSE_SECRET="${cfg.licenseSecret}"`);
+    }
+    const tmp = envPath + '.tmp';
+    fs.writeFileSync(tmp, lines.join('\n') + '\n', 'utf8');
+    fs.renameSync(tmp, envPath);
+  } catch (e) {
+    console.warn('env write skipped', e && e.message ? e.message : e);
+  }
 
   ensureDatabase(env);
 

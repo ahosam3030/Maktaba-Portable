@@ -1,0 +1,80 @@
+name: Build Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install root deps
+        run: npm ci || npm install
+
+      - name: Install API deps
+        working-directory: apps/api
+        run: npm ci || npm install
+
+      - name: Install Web deps
+        working-directory: apps/web
+        run: npm ci || npm install
+
+      - name: Prisma generate
+        working-directory: apps/api
+        run: npx prisma generate
+        env:
+          DATABASE_URL: 'file:./dev.db'
+
+      - name: Unit tests (API)
+        working-directory: apps/api
+        run: npm test
+        env:
+          DATABASE_URL: 'file:./dev.db'
+
+      - name: Build API
+        working-directory: apps/api
+        run: npm run build
+
+      - name: Build Web
+        working-directory: apps/web
+        run: npm run build
+
+      - name: Build Windows installer
+        run: npx electron-builder --win nsis portable --x64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maktaba-windows
+          path: |
+            release/*.exe
+            release/*.yml
+          if-no-files-found: warn
+
+      - name: Attach to GitHub Release (on tag)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/*.exe
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
