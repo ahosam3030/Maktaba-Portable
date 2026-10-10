@@ -6607,9 +6607,9 @@ button.danger-outline-btn {
   white-space: nowrap;
 }
 .credit-chip--time {
-  background: #eff6ff;
-  border-color: #bfdbfe;
-  color: #1e40af;
+  background: #f0fdfa;
+  border-color: #99f6e4;
+  color: #0f766e;
 }
 .credit-chip--money {
   background: #ecfdf5;
@@ -6637,8 +6637,8 @@ button.danger-outline-btn {
 }
 
 .credit-mini-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #f0fdfa;
+  border: 1px solid #ccfbf1;
   border-radius: 10px;
   padding: 8px 6px;
   text-align: center;
@@ -6648,7 +6648,7 @@ button.danger-outline-btn {
   font-size: 0.78rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #1e293b;
+  color: #0f766e;
   margin-top: 2px;
 }
 .credit-customer-card__times {
@@ -6657,11 +6657,14 @@ button.danger-outline-btn {
   gap: 6px;
 }
 .credit-timeline-item {
-  background: #fff;
-  border: 1px solid #e2ecea;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
   border-radius: 10px;
   padding: 10px 8px;
   text-align: center;
+}
+.credit-timeline-item__value {
+  color: #0f766e !important;
 }
 .credit-timeline-row {
   background: transparent !important;
