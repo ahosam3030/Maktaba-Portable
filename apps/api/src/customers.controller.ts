@@ -29,20 +29,41 @@ export class CustomersController {
       where: { organizationId: user.organizationId },
       orderBy: { name: 'asc' },
       include: {
-        sales: { select: { id: true, total: true, paidAmount: true, paymentStatus: true } },
-        payments: { select: { amount: true } },
+        sales: {
+          select: {
+            id: true,
+            total: true,
+            paidAmount: true,
+            paymentStatus: true,
+            saleDate: true,
+            createdAt: true,
+          },
+        },
+        payments: { select: { amount: true, date: true, createdAt: true }, orderBy: { date: 'desc' } },
       },
     });
     return customers.map((c) => {
       const salesTotal = c.sales.reduce((s, x) => s + Number(x.total), 0);
       const salesPaid = c.sales.reduce((s, x) => s + Number(x.paidAmount), 0);
       const balance = roundMoney(salesTotal - salesPaid);
+      const saleTimes = c.sales
+        .map((x) => new Date(x.saleDate || x.createdAt).getTime())
+        .filter((t) => Number.isFinite(t));
+      const firstSaleAt = saleTimes.length ? new Date(Math.min(...saleTimes)).toISOString() : null;
+      const lastSaleAt = saleTimes.length ? new Date(Math.max(...saleTimes)).toISOString() : null;
+      const lastPaymentAt = c.payments[0]
+        ? new Date(c.payments[0].date || c.payments[0].createdAt).toISOString()
+        : null;
       return {
         id: c.id,
         name: c.name,
         phone: c.phone,
         notes: c.notes,
         createdAt: c.createdAt,
+        accountOpenedAt: c.createdAt,
+        firstSaleAt,
+        lastSaleAt,
+        lastPaymentAt,
         invoicesCount: c.sales.length,
         salesTotal: roundMoney(salesTotal),
         paidTotal: roundMoney(salesPaid),
@@ -69,11 +90,33 @@ export class CustomersController {
       salesTotal: roundMoney(salesTotal),
       paidTotal: roundMoney(salesPaid),
       balance: balance > 0 ? balance : 0,
+      accountOpenedAt: c.createdAt,
+      firstSaleAt: c.sales.length
+        ? new Date(Math.min(...c.sales.map((s) => new Date(s.saleDate || s.createdAt).getTime()))).toISOString()
+        : null,
+      lastSaleAt: c.sales.length
+        ? new Date(Math.max(...c.sales.map((s) => new Date(s.saleDate || s.createdAt).getTime()))).toISOString()
+        : null,
+      lastPaymentAt: c.payments[0]
+        ? new Date(c.payments[0].date || c.payments[0].createdAt).toISOString()
+        : null,
       sales: c.sales.map((s) => ({
         ...s,
         total: Number(s.total),
         paidAmount: Number(s.paidAmount),
+        discount: Number(s.discount || 0),
         remaining: roundMoney(Number(s.total) - Number(s.paidAmount)),
+        saleDate: s.saleDate,
+        createdAt: s.createdAt,
+      })),
+      payments: c.payments.map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        date: p.date,
+        createdAt: p.createdAt,
+        method: p.method,
+        notes: p.notes,
+        saleId: p.saleId,
       })),
     };
   }

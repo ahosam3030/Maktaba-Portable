@@ -4,14 +4,41 @@ import { loadInvoiceSettings } from '../data/invoiceSettings';
 
 type SaleItem = { productName: string; quantity: number; unitPrice: number; lineTotal: number; unit?: string | null };
 type SaleRow = {
-  id: string; invoiceNumber: string; saleDate: string; total: number; paidAmount: number;
-  remaining: number; paymentStatus: string; discount?: number; items?: SaleItem[];
+  id: string;
+  invoiceNumber: string;
+  saleDate: string;
+  createdAt?: string;
+  total: number;
+  paidAmount: number;
+  remaining: number;
+  paymentStatus: string;
+  discount?: number;
+  items?: SaleItem[];
+};
+type PaymentRow = {
+  id: string;
+  amount: number;
+  date: string;
+  createdAt?: string;
+  method?: string;
+  notes?: string | null;
+  saleId?: string | null;
 };
 type CustomerRow = {
-  id: string; name: string; phone: string | null; invoicesCount: number;
-  salesTotal: number; paidTotal: number; balance: number;
+  id: string;
+  name: string;
+  phone: string | null;
+  invoicesCount: number;
+  salesTotal: number;
+  paidTotal: number;
+  balance: number;
+  createdAt?: string;
+  accountOpenedAt?: string;
+  firstSaleAt?: string | null;
+  lastSaleAt?: string | null;
+  lastPaymentAt?: string | null;
 };
-type CustomerDetail = CustomerRow & { sales: SaleRow[] };
+type CustomerDetail = CustomerRow & { sales: SaleRow[]; payments?: PaymentRow[] };
 
 function escapeHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -26,6 +53,48 @@ function statusClass(s: string) {
   if (s === 'PAID') return 'credit-badge credit-badge--paid';
   if (s === 'PARTIAL') return 'credit-badge credit-badge--partial';
   return 'credit-badge credit-badge--open';
+}
+
+/** تاريخ + وقت دقيق بالأرقام الإنجليزية */
+function formatDateTime(value?: string | Date | null): string {
+  if (!value) return '—';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const date = d.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  return `${date} ${time}`;
+}
+
+function formatDateOnly(value?: string | Date | null): string {
+  if (!value) return '—';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+/** عدد الأيام منذ تاريخ الشراء */
+function daysSince(value?: string | null): string {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return 'اليوم';
+  if (days === 1) return 'يوم واحد';
+  return `${days} يوم`;
+}
+
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function paymentMethodLabel(m?: string) {
+  if (!m) return 'نقدي';
+  if (m === 'CASH') return 'نقدي';
+  if (m === 'WALLET') return 'محفظة';
+  if (m === 'BANK') return 'تحويل';
+  if (m === 'CARD') return 'بطاقة';
+  return m;
 }
 
 /** طباعة HTML داخل Electron بدون الاعتماد على النوافذ المنبثقة */
@@ -80,7 +149,8 @@ function buildInvoiceHtml(sale: SaleRow, customerName: string, customerPhone?: s
   const tot = Number(sale.total);
   const paid = Number(sale.paidAmount);
   const rem = Math.max(0, tot - paid);
-  const dateStr = sale.saleDate ? new Date(sale.saleDate).toLocaleDateString('ar-EG') : '';
+  const dateStr = formatDateTime(sale.saleDate || sale.createdAt);
+  const createdStr = sale.createdAt && sale.createdAt !== sale.saleDate ? formatDateTime(sale.createdAt) : '';
   return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"/><title>فاتورة ${escapeHtml(sale.invoiceNumber)}</title>
 <style>
 @page{margin:8mm}
@@ -104,7 +174,8 @@ th{background:#f3f4f6}
 <div><strong>العميل:</strong> ${escapeHtml(customerName)}</div>
 <div><strong>رقم الفاتورة:</strong> <span dir="ltr">${escapeHtml(sale.invoiceNumber)}</span></div>
 <div><strong>الهاتف:</strong> <span dir="ltr">${escapeHtml(customerPhone || '—')}</span></div>
-<div><strong>التاريخ:</strong> ${escapeHtml(dateStr)}</div>
+<div><strong>وقت الشراء:</strong> <span dir="ltr">${escapeHtml(dateStr)}</span></div>
+${createdStr ? `<div><strong>وقت التسجيل:</strong> <span dir="ltr">${escapeHtml(createdStr)}</span></div>` : ''}
 </div>
 <table>
 <thead><tr><th>م</th><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>
@@ -134,6 +205,7 @@ export function Credit() {
   const [busy, setBusy] = useState(false);
   const [payAmount, setPayAmount] = useState('');
   const [payNotes, setPayNotes] = useState('');
+  const [payDateTime, setPayDateTime] = useState(() => toLocalInputValue(new Date()));
   const [paySaleId, setPaySaleId] = useState('');
   const [q, setQ] = useState('');
 
@@ -250,7 +322,9 @@ export function Credit() {
           body: JSON.stringify({
             amount,
             notes: payNotes.trim() || undefined,
+            method: 'CASH',
             saleId: paySaleId || undefined,
+            date: payDateTime ? new Date(payDateTime).toISOString() : new Date().toISOString(),
           }),
         },
       );
@@ -259,6 +333,7 @@ export function Credit() {
         : '';
       setMsg(detail ? `تم التحصيل — ${detail}` : 'تم تسجيل التحصيل');
       setPayNotes('');
+      setPayDateTime(toLocalInputValue(new Date()));
       await load();
       await openCustomer(selected.id);
       setOpenSale(null);
@@ -281,7 +356,7 @@ export function Credit() {
         <div>
           <span className="eyebrow">المالية</span>
           <h1>الآجل والتحصيل</h1>
-          <p>حسابات العملاء · سداد فاتورة أو جزء · عرض وطباعة في أي وقت</p>
+          <p>كل عملية لها تاريخ ووقت دقيق · وقت الشراء · وقت السداد · عمر الدين</p>
         </div>
         <button className="secondary-btn" type="button" disabled={busy} onClick={() => void load()}>
           تحديث
@@ -339,6 +414,9 @@ export function Credit() {
               <thead>
                 <tr>
                   <th>العميل</th>
+                  <th>أول شراء</th>
+                  <th>آخر شراء</th>
+                  <th>آخر سداد</th>
                   <th>فواتير</th>
                   <th>المتبقي</th>
                   <th></th>
@@ -347,7 +425,7 @@ export function Credit() {
               <tbody>
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="muted">
+                    <td colSpan={7} className="muted">
                       لا يوجد عملاء آجل بعد — أنشئ فاتورة بيع آجل من المبيعات
                     </td>
                   </tr>
@@ -364,7 +442,13 @@ export function Credit() {
                           {c.phone}
                         </div>
                       ) : null}
+                      <div className="muted credit-time-line" dir="ltr">
+                        فتح الحساب: {formatDateTime(c.accountOpenedAt || c.createdAt)}
+                      </div>
                     </td>
+                    <td className="credit-dt" dir="ltr">{formatDateTime(c.firstSaleAt)}</td>
+                    <td className="credit-dt" dir="ltr">{formatDateTime(c.lastSaleAt)}</td>
+                    <td className="credit-dt" dir="ltr">{formatDateTime(c.lastPaymentAt)}</td>
                     <td>{c.invoicesCount}</td>
                     <td style={{ fontWeight: 700, color: c.balance > 0 ? '#b45309' : '#16815d' }}>
                       {Number(c.balance).toFixed(2)}
@@ -407,6 +491,15 @@ export function Credit() {
                     المتبقي:{' '}
                     <strong style={{ color: '#b45309' }}>{Number(selected.balance).toFixed(2)}</strong>
                   </p>
+                  <p className="muted credit-time-meta" dir="ltr">
+                    فتح الحساب: {formatDateTime(selected.accountOpenedAt || selected.createdAt)}
+                    {' · '}
+                    أول شراء: {formatDateTime(selected.firstSaleAt)}
+                    {' · '}
+                    آخر شراء: {formatDateTime(selected.lastSaleAt)}
+                    {' · '}
+                    آخر سداد: {formatDateTime(selected.lastPaymentAt)}
+                  </p>
                 </div>
                 <button
                   className="secondary-btn small"
@@ -431,7 +524,7 @@ export function Credit() {
                       <option value="">توزيع تلقائي (من الأقدم للأحدث)</option>
                       {openInvoices.map((s) => (
                         <option key={s.id} value={s.id}>
-                          {s.invoiceNumber} — متبقي {Number(s.remaining).toFixed(2)}
+                          {s.invoiceNumber} · {formatDateTime(s.saleDate)} · متبقي {Number(s.remaining).toFixed(2)}
                         </option>
                       ))}
                     </select>
@@ -446,6 +539,16 @@ export function Credit() {
                       placeholder="0.00"
                     />
                   </label>
+                  <label>
+                    وقت السداد
+                    <input
+                      type="datetime-local"
+                      step="1"
+                      value={payDateTime}
+                      onChange={(e) => setPayDateTime(e.target.value)}
+                      dir="ltr"
+                    />
+                  </label>
                   <label className="credit-collect-notes">
                     ملاحظات
                     <input
@@ -456,6 +559,8 @@ export function Credit() {
                   </label>
                 </div>
                 <p className="muted credit-collect-hint">
+                  إن عدّلت الوقت يُحفظ كما هو · وإلا يُستخدم وقت الضغط على التسجيل
+                  {' · '}
                   {paySaleId
                     ? 'يسدد على الفاتورة المختارة فقط (جزء أو كامل متبقيها).'
                     : 'يوزَّع على الفواتير المفتوحة بدءًا من الأقدم.'}
@@ -484,9 +589,45 @@ export function Credit() {
                 </div>
               </div>
 
+              {/* سجل التحصيلات بالوقت */}
+              {(selected.payments || []).length > 0 ? (
+                <div className="credit-payments-block">
+                  <div className="credit-invoices-head">
+                    <h3>سجل السداد (تاريخ ووقت كل تحصيل)</h3>
+                    <span className="count-badge">{(selected.payments || []).length}</span>
+                  </div>
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>وقت السداد</th>
+                          <th>وقت التسجيل</th>
+                          <th>المبلغ</th>
+                          <th>الطريقة</th>
+                          <th>ملاحظات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selected.payments || []).map((p) => (
+                          <tr key={p.id}>
+                            <td className="credit-dt" dir="ltr">{formatDateTime(p.date)}</td>
+                            <td className="credit-dt" dir="ltr">{formatDateTime(p.createdAt || p.date)}</td>
+                            <td style={{ fontWeight: 600, color: '#16815d' }}>{Number(p.amount).toFixed(2)}</td>
+                            <td>{paymentMethodLabel(p.method)}</td>
+                            <td className="muted">{p.notes || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <p className="muted credit-collect-hint">لا يوجد تحصيل مسجّل بعد لهذا العميل.</p>
+              )}
+
               {/* جدول الفواتير */}
               <div className="credit-invoices-head">
-                <h3>فواتير العميل</h3>
+                <h3>فواتير العميل — وقت الشراء والتسجيل</h3>
                 <span className="count-badge">{selected.sales.length}</span>
               </div>
               <div className="table-wrap">
@@ -494,7 +635,9 @@ export function Credit() {
                   <thead>
                     <tr>
                       <th>رقم</th>
-                      <th>تاريخ</th>
+                      <th>وقت الشراء</th>
+                      <th>وقت التسجيل</th>
+                      <th>عمر الدين</th>
                       <th>الإجمالي</th>
                       <th>مدفوع</th>
                       <th>متبقي</th>
@@ -511,7 +654,9 @@ export function Credit() {
                         }
                       >
                         <td dir="ltr">{s.invoiceNumber}</td>
-                        <td>{s.saleDate ? new Date(s.saleDate).toLocaleDateString('ar-EG') : '—'}</td>
+                        <td className="credit-dt" dir="ltr">{formatDateTime(s.saleDate)}</td>
+                        <td className="credit-dt" dir="ltr">{formatDateTime(s.createdAt || s.saleDate)}</td>
+                        <td>{Number(s.remaining) > 0.001 ? daysSince(s.saleDate) : '—'}</td>
                         <td>{Number(s.total).toFixed(2)}</td>
                         <td>{Number(s.paidAmount).toFixed(2)}</td>
                         <td
@@ -581,9 +726,7 @@ export function Credit() {
                         تفاصيل فاتورة <span dir="ltr">{openSale.invoiceNumber}</span>
                       </h3>
                       <p className="muted">
-                        {openSale.saleDate
-                          ? new Date(openSale.saleDate).toLocaleString('ar-EG')
-                          : '—'}
+                        {formatDateTime(openSale.saleDate)}
                         {' · '}
                         <span className={statusClass(openSale.paymentStatus)}>
                           {statusLabel(openSale.paymentStatus)}

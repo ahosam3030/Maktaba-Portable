@@ -5838,3 +5838,24 @@ button.danger-outline-btn {
   background: rgba(255,255,255,.14) !important;
   color: #fff !important;
 }
+
+
+/* الآجل — تواريخ وأوقات */
+.credit-dt {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--color-text, #172b35);
+}
+.credit-time-line,
+.credit-time-meta {
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.45;
+}
+.credit-payments-block {
+  margin: 12px 0 16px;
+}
+.credit-panel-list .table-wrap {
+  overflow-x: auto;
+}
