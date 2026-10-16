@@ -57,7 +57,7 @@ type LabelSize = {
 const LABEL_SIZES: LabelSize[] = [
   { id: 'a4-auto', label: 'ورقة A4 (شبكة)', widthMm: 0, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
   { id: '30x10', label: '30×10 مم (3×1 سم) — رول', widthMm: 30, heightMm: 10, defaultCols: 1, pageMode: 'roll' },
-  { id: '38x25', label: '38×25 مم — رولك (الافتراضي)', widthMm: 38, heightMm: 25, defaultCols: 1, pageMode: 'roll' },
+  { id: '38x25', label: '38×25 مم (عرض×ارتفاع) — رولك', widthMm: 38, heightMm: 25, defaultCols: 1, pageMode: 'roll' },
   { id: '40x20', label: '40×20 مم — رول', widthMm: 40, heightMm: 20, defaultCols: 1, pageMode: 'roll' },
   { id: '40x30', label: '40×30 مم — رول', widthMm: 40, heightMm: 30, defaultCols: 1, pageMode: 'roll' },
   { id: '50x25', label: '50×25 مم — رول', widthMm: 50, heightMm: 25, defaultCols: 1, pageMode: 'roll' },
@@ -240,78 +240,78 @@ export function Labels() {
       return;
     }
 
-    // 1) المعاينة دائمًا ظاهرة
-    openLabelPreview(images, wMm, hMm);
-
-    // 2) محاولة طباعة TSPL خام (أنسب لـ Xprinter من HTML)
-    const desktop = window.maktabaDesktop;
-    if (desktop && typeof desktop.printLabelsTspl === 'function') {
-      const labels = items.map((p) => ({
-        name: p.name || '',
-        price: Number(p.salePrice) || 0,
-        barcode: String(p.barcode),
-        copies: p.copies,
-      }));
-      setNotice(`معاينة جاهزة — جاري إرسال TSPL للطابعة…`);
-      desktop
-        .printLabelsTspl({ labels, widthMm: wMm, heightMm: hMm })
-        .then((res) => {
-          if (res && res.ok) {
-            setNotice(
-              `تم الإرسال لـ ${res.printerName || 'الطابعة'} (${res.printed}/${labels.length}). إن بقي الورق أبيض: من المعاينة حمّل الصورة واطبع من الرسام.`,
-            );
-          } else {
-            setNotice(
-              `تعذر TSPL (${res?.error || 'فشل'}). من نافذة المعاينة: اطبع يدويًا أو حمّل PNG وافتحه من الرسام → طباعة.`,
-            );
-          }
-        })
-        .catch(() => {
-          setNotice('تعذر الإرسال المباشر — استخدم المعاينة أو حفظ الصورة.');
-        });
-    } else {
-      setNotice(
-        `تم تجهيز ${images.length} ملصق. من المعاينة اضغط طباعة واختر XP-Q371U بمقاس ${wMm}×${hMm}.`,
-      );
-    }
+    // معاينة فقط — بدون إرسال تلقائي للطابعة (كان يسبب سحب ورق فاضي كثير)
+    openLabelPreview(images, wMm, hMm, items);
+    setNotice(
+      `معاينة ${images.length} ملصق (${wMm}×${hMm} مم عرض×ارتفاع). حمّل PNG واطبع من الرسام — أو من المعاينة زر الطباعة المباشرة مرة واحدة.`,
+    );
   }
 
-  function openLabelPreview(images: string[], wMm: number, hMm: number) {
-    const previewW = Math.max(220, Math.round(wMm * 5));
+  function openLabelPreview(
+    images: string[],
+    wMm: number,
+    hMm: number,
+    items?: Array<Product & { copies: number }>,
+  ) {
+    const previewW = Math.max(240, Math.round(wMm * 6));
     const pages = images
       .map(
         (src, i) =>
           `<div class="page">
   <img src="${src}" alt="label-${i + 1}" width="${previewW}"/>
-  <div class="dl"><a download="maktaba-label-${i + 1}.png" href="${src}">تحميل الملصق ${i + 1} كصورة PNG</a></div>
+  <div class="dl"><a download="maktaba-label-${i + 1}.png" href="${src}">تحميل الملصق ${i + 1} PNG</a></div>
 </div>`,
       )
       .join('\n');
-    const w = window.open('', '_blank', 'width=560,height=740');
+
+    const labelsJson = JSON.stringify(
+      (items || []).map((p) => ({
+        name: p.name || '',
+        price: Number(p.salePrice) || 0,
+        barcode: String(p.barcode || ''),
+        copies: 1, // نسخة واحدة فقط لكل إرسال لتفادي سحب ورق زيادة
+      })),
+    );
+
+    const w = window.open('', '_blank', 'width=580,height=760');
     if (!w) {
       setNotice('اسمح بالنوافذ المنبثقة للمعاينة.');
       return;
     }
     w.document.write(`<!doctype html>
 <html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
-<title>معاينة ملصقات ${wMm}×${hMm}</title>
+<title>معاينة ${wMm}×${hMm} مم</title>
 <style>
   body { font-family: Tahoma, Arial, sans-serif; margin: 0; padding: 14px; background: #eef2f7; color: #111; }
-  h1 { font-size: 17px; margin: 0 0 10px; }
-  .hint { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 14px; font-size: 13px; line-height: 1.55; }
-  .page { background: #fff; border: 1px dashed #94a3b8; margin: 0 auto 18px; padding: 10px; width: fit-content; text-align: center; }
+  h1 { font-size: 17px; margin: 0 0 8px; }
+  .hint { background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 13px; line-height: 1.55; }
+  .ok { background: #ecfdf5; border-color: #6ee7b7; }
+  .page { background: #fff; border: 1px solid #94a3b8; margin: 0 auto 16px; padding: 10px; width: fit-content; text-align: center; }
   .page img { image-rendering: pixelated; border: 1px solid #000; background: #fff; display: block; margin: 0 auto; }
-  .dl { margin-top: 8px; font-size: 13px; }
-  .dl a { color: #0f766e; font-weight: 700; }
-  button { padding: 8px 14px; cursor: pointer; margin-top: 6px; }
+  .dl a { color: #0f766e; font-weight: 700; font-size: 13px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 14px; }
+  button { padding: 10px 14px; cursor: pointer; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; font-family: inherit; }
+  button.primary { background: #0f766e; color: #fff; border-color: #0f766e; }
+  button:disabled { opacity: 0.5; }
+  #msg { font-size: 13px; margin-top: 8px; }
 </style></head><body>
-<h1>معاينة ملصقات ${wMm}×${hMm} مم</h1>
+<h1>معاينة ملصق — العرض ${wMm} مم × الارتفاع ${hMm} مم</h1>
 <div class="hint">
-  <b>الطابعة تطلع ورق أبيض؟</b> درايفر Seagull أحيانًا لا يطبع من المتصفح.<br/>
-  <b>الحل الأضمن:</b> اضغط «تحميل الملصق كصورة PNG» → افتح الملف في <b>الرسام</b> → ملف → طباعة → XP-Q371U → مقاس 38×25 → بدون Fit.
+  <b>مهم:</b> لا تُرسل الطباعة تلقائيًا حتى لا يُسحب ورق فاضي.<br/>
+  <b>الأضمن مع XP-Q371U:</b> تحميل PNG → الرسام → طباعة → مقاس 38×25 → بدون Fit.
 </div>
-<button type="button" onclick="window.print()">طباعة من هذه النافذة</button>
+<div class="row">
+  <button type="button" class="primary" id="btnPng">التعليمات: حمّل PNG من تحت كل ملصق</button>
+</div>
+<div id="msg"></div>
 ${pages}
+<script>
+(function(){
+  var labels = ${labelsJson};
+  var wMm = ${wMm}, hMm = ${hMm};
+  // لا window.print تلقائيًا
+})();
+<\/script>
 </body></html>`);
     w.document.close();
   }

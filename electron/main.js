@@ -826,8 +826,8 @@ ${pages}
       'CLS',
       `TEXT 16,12,"2",0,1,1,"${name}"`,
       `TEXT 16,42,"2",0,1,1,"${price}"`,
-      `BARCODE 16,70,"128",60,1,0,2,2,"${code}"`,
-      `PRINT ${copies},1`,
+      `BARCODE 16,70,"128",48,1,0,2,2,"${code}"`,
+      'PRINT 1,1',
       '',
     ];
     return lines.join('\r\n');
