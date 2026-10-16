@@ -913,17 +913,33 @@ ${pages}
     if (!printerName) return { ok: false, error: 'no-printer' };
 
     const os = require('os');
-    const { execFile } = require('child_process');
+    const { execFile, exec } = require('child_process');
     const tmpDir = path.join(os.tmpdir(), 'maktaba-label-print');
     try {
       fs.mkdirSync(tmpDir, { recursive: true });
     } catch (_) {}
 
-    const paperW = Math.max(1, Math.round((widthMm / 25.4) * 100));
-    const paperH = Math.max(1, Math.round((heightMm / 25.4) * 100));
-
     let printed = 0;
     let lastError = null;
+    const methodsTried = [];
+
+    function run(cmd, args, opts = {}) {
+      return new Promise((resolve) => {
+        execFile(cmd, args, { windowsHide: true, timeout: 90000, ...opts }, (err, stdout, stderr) => {
+          if (err) resolve({ ok: false, err: String(stderr || err.message || err).slice(0, 300) });
+          else resolve({ ok: true, stdout: String(stdout || '') });
+        });
+      });
+    }
+
+    function runShell(command) {
+      return new Promise((resolve) => {
+        exec(command, { windowsHide: true, timeout: 90000 }, (err, stdout, stderr) => {
+          if (err) resolve({ ok: false, err: String(stderr || err.message || err).slice(0, 300) });
+          else resolve({ ok: true });
+        });
+      });
+    }
 
     for (let i = 0; i < images.length; i++) {
       const src = String(images[i] || '');
@@ -933,7 +949,6 @@ ${pages}
         continue;
       }
       const filePath = path.join(tmpDir, 'label-' + Date.now() + '-' + i + '.png');
-      const ps1Path = path.join(tmpDir, 'print-' + Date.now() + '-' + i + '.ps1');
       try {
         fs.writeFileSync(filePath, Buffer.from(m[1], 'base64'));
       } catch (e) {
@@ -941,77 +956,99 @@ ${pages}
         continue;
       }
 
-      // ملف PowerShell منفصل حتى لا ينكسر param() داخل add_PrintPage
-      const ps1 = [
-        "$ErrorActionPreference = 'Stop'",
-        "Add-Type -AssemblyName System.Drawing",
-        "$printer = @'",
-        String(printerName),
-        "'@",
-        "$path = @'",
-        filePath,
-        "'@",
-        "$wMm = " + widthMm,
-        "$hMm = " + heightMm,
-        "$paperW = " + paperW,
-        "$paperH = " + paperH,
-        "$img = [System.Drawing.Image]::FromFile($path)",
-        "try {",
-        "  $pd = New-Object System.Drawing.Printing.PrintDocument",
-        "  $pd.PrinterSettings.PrinterName = $printer",
-        "  if (-not $pd.PrinterSettings.IsValid) { throw \"Printer not valid: $printer\" }",
-        "  $pd.DocumentName = 'MaktabaLabel'",
-        "  $pd.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0,0,0,0)",
-        "  $pd.DefaultPageSettings.Landscape = $false",
-        "  try {",
-        "    $psize = New-Object System.Drawing.Printing.PaperSize('MaktabaLabel', $paperW, $paperH)",
-        "    $psize.RawKind = 256",
-        "    $pd.DefaultPageSettings.PaperSize = $psize",
-        "  } catch {}",
-        "  $script:imgRef = $img",
-        "  $script:wMm = $wMm",
-        "  $script:hMm = $hMm",
-        "  $pd.add_PrintPage({",
-        "    param($sender, $e)",
-        "    $g = $e.Graphics",
-        "    $g.PageUnit = [System.Drawing.GraphicsUnit]::Millimeter",
-        "    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor",
-        "    $g.Clear([System.Drawing.Color]::White)",
-        "    $g.DrawImage($script:imgRef, 0, 0, $script:wMm, $script:hMm)",
-        "    $e.HasMorePages = $false",
-        "  })",
-        "  $pd.Print()",
-        "}",
-        "finally {",
-        "  $img.Dispose()",
-        "}",
-      ].join('\r\n');
+      let ok = false;
 
-      try {
-        fs.writeFileSync(ps1Path, ps1, 'utf8');
-      } catch (e) {
-        lastError = 'ps1-write-fail';
-        continue;
+      // 1) Windows Photo print-to-printer (يعمل مع أغلب درايفرات الملصقات)
+      // rundll32 shimgvw.dll,ImageView_PrintTo filename printername
+      {
+        const r = await runShell(
+          'rundll32.exe shimgvw.dll,ImageView_PrintTo "' + filePath.replace(/"/g, '') + '" "' + String(printerName).replace(/"/g, '') + '"',
+        );
+        methodsTried.push('shimgvw');
+        if (r.ok) {
+          ok = true;
+          // انتظر قليلاً حتى تكتمل مهمة الطباعة
+          await new Promise((res) => setTimeout(res, 1500));
+        } else {
+          lastError = r.err;
+        }
       }
 
-      const ok = await new Promise((resolve) => {
-        execFile(
-          'powershell.exe',
-          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1Path],
-          { windowsHide: true, timeout: 90000 },
-          (err, _stdout, stderr) => {
-            if (err) {
-              lastError = String(stderr || err.message || err).slice(0, 400);
-              resolve(false);
-            } else resolve(true);
-          },
-        );
-      });
+      // 2) mspaint /pt "file" "printer"
+      if (!ok) {
+        const paintCandidates = [
+          path.join(process.env.SystemRoot || 'C:\\\\Windows', 'System32', 'mspaint.exe'),
+          path.join(process.env.SystemRoot || 'C:\\\\Windows', 'mspaint.exe'),
+        ];
+        for (const paint of paintCandidates) {
+          if (!fs.existsSync(paint)) continue;
+          const r = await run(paint, ['/pt', filePath, printerName]);
+          methodsTried.push('mspaint');
+          if (r.ok) {
+            ok = true;
+            await new Promise((res) => setTimeout(res, 1500));
+            break;
+          }
+          lastError = r.err;
+        }
+      }
+
+      // 3) PowerShell GDI مع مقاس الملصق
+      if (!ok) {
+        const paperW = Math.max(1, Math.round((widthMm / 25.4) * 100));
+        const paperH = Math.max(1, Math.round((heightMm / 25.4) * 100));
+        const ps1Path = path.join(tmpDir, 'print-' + Date.now() + '-' + i + '.ps1');
+        const ps1 = [
+          "$ErrorActionPreference = 'Stop'",
+          "Add-Type -AssemblyName System.Drawing",
+          "$printer = @'",
+          String(printerName),
+          "'@",
+          "$path = @'",
+          filePath,
+          "'@",
+          "$wMm = " + widthMm,
+          "$hMm = " + heightMm,
+          "$paperW = " + paperW,
+          "$paperH = " + paperH,
+          "$img = [System.Drawing.Image]::FromFile($path)",
+          "try {",
+          "  $pd = New-Object System.Drawing.Printing.PrintDocument",
+          "  $pd.PrinterSettings.PrinterName = $printer",
+          "  if (-not $pd.PrinterSettings.IsValid) { throw \"Printer not valid: $printer\" }",
+          "  $pd.DocumentName = 'MaktabaLabel'",
+          "  $pd.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0,0,0,0)",
+          "  try {",
+          "    $psize = New-Object System.Drawing.Printing.PaperSize('MaktabaLabel', $paperW, $paperH)",
+          "    $psize.RawKind = 256",
+          "    $pd.DefaultPageSettings.PaperSize = $psize",
+          "  } catch {}",
+          "  $script:imgRef = $img",
+          "  $pd.add_PrintPage({",
+          "    param($sender, $e)",
+          "    $e.Graphics.DrawImage($script:imgRef, $e.MarginBounds)",
+          "    $e.HasMorePages = $false",
+          "  })",
+          "  $pd.Print()",
+          "}",
+          "finally { $img.Dispose() }",
+        ].join('\r\n');
+        try {
+          fs.writeFileSync(ps1Path, ps1, 'utf8');
+          const r = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1Path]);
+          methodsTried.push('gdi');
+          if (r.ok) ok = true;
+          else lastError = r.err;
+          try {
+            fs.unlinkSync(ps1Path);
+          } catch (_) {}
+        } catch (e) {
+          lastError = String(e.message || e);
+        }
+      }
+
       try {
         fs.unlinkSync(filePath);
-      } catch (_) {}
-      try {
-        fs.unlinkSync(ps1Path);
       } catch (_) {}
       if (ok) printed++;
     }
@@ -1022,7 +1059,8 @@ ${pages}
       total: images.length,
       printerName,
       paperMm: widthMm + 'x' + heightMm,
-      error: printed > 0 ? null : lastError || 'gdi-failed',
+      methods: methodsTried.join(','),
+      error: printed > 0 ? null : lastError || 'all-methods-failed',
     };
   });
 
