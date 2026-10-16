@@ -2,7 +2,7 @@
  * Maktaba Portable — سطح المكتب (Electron)
  * يشغّل الـ API محليًا ويفتح نافذة برنامج.
  */
-const { app, BrowserWindow, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, dialog, shell, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -732,6 +732,67 @@ function resolveAppIcon() {
   return undefined;
 }
 
+
+/** طباعة ملصقات بمقاس ملم — يتجنب صفحة A4 الفاضية مع درايفر Seagull */
+function registerLabelPrintIpc() {
+  ipcMain.handle('print-labels', async (_event, payload) => {
+    const images = (payload && payload.images) || [];
+    const widthMm = Math.max(10, Number(payload && payload.widthMm) || 38);
+    const heightMm = Math.max(10, Number(payload && payload.heightMm) || 25);
+    if (!images.length) return { ok: false, error: 'no-images' };
+
+    const pages = images
+      .map(
+        (src, i) =>
+          `<div class="page"><img src="${String(src).replace(/"/g, '')}" alt="l${i}"/></div>`,
+      )
+      .join('');
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/>
+<style>
+  @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
+  * { margin: 0; padding: 0; }
+  html, body { width: ${widthMm}mm; height: ${heightMm}mm; background: #fff; }
+  .page { width: ${widthMm}mm; height: ${heightMm}mm; page-break-after: always; overflow: hidden; }
+  .page:last-child { page-break-after: auto; }
+  img { width: ${widthMm}mm; height: ${heightMm}mm; display: block; }
+</style></head><body>${pages}</body></html>`;
+
+    const printWin = new BrowserWindow({
+      show: false,
+      width: Math.round((widthMm / 25.4) * 96) + 40,
+      height: Math.round((heightMm / 25.4) * 96) + 80,
+      webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
+    });
+
+    await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+    await new Promise((r) => setTimeout(r, 400));
+
+    const pageSize = {
+      width: Math.round(widthMm * 1000),
+      height: Math.round(heightMm * 1000),
+    };
+
+    return await new Promise((resolve) => {
+      printWin.webContents.print(
+        {
+          silent: false,
+          printBackground: true,
+          margins: { marginType: 'none' },
+          pageSize,
+        },
+        (success, failureReason) => {
+          try {
+            printWin.close();
+          } catch (_) {}
+          resolve({ ok: !!success, error: failureReason || null });
+        },
+      );
+    });
+  });
+}
+
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -746,6 +807,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 

@@ -1,3 +1,15 @@
+declare global {
+  interface Window {
+    maktabaDesktop?: {
+      isDesktop?: boolean;
+      printLabels?: (p: {
+        images: string[];
+        widthMm: number;
+        heightMm: number;
+      }) => Promise<{ ok?: boolean; error?: string | null }>;
+    };
+  }
+}
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
@@ -221,80 +233,61 @@ export function Labels() {
       return;
     }
 
-    // معاينة واضحة + طباعة صورة نقطية (أنسب لدرايفر Seagull/Xprinter)
-    const pages = images
-      .map(
-        (src, i) =>
-          `<div class="page"><img src="${src}" alt="label-${i + 1}"/></div>`,
-      )
-      .join('\n');
+    // طباعة سطح المكتب بمقاس الملصق (يتفادى صفحة A4 البيضاء)
+    const desktop = window.maktabaDesktop;
+    if (desktop && typeof desktop.printLabels === 'function') {
+      setNotice(`جاري إرسال ${images.length} ملصق (${wMm}×${hMm} مم) للطابعة…`);
+      desktop
+        .printLabels({ images, widthMm: wMm, heightMm: hMm })
+        .then((res) => {
+          if (res && res.ok === false) {
+            setNotice(`تعذرت الطباعة: ${res.error || 'غير معروف'} — جرّب حفظ الصورة من المعاينة.`);
+            openLabelPreview(images, wMm, hMm);
+          } else {
+            setNotice(`تم إرسال ${images.length} ملصق للطابعة (${wMm}×${hMm} مم).`);
+          }
+        })
+        .catch(() => {
+          setNotice('تعذرت طباعة سطح المكتب — فتح المعاينة…');
+          openLabelPreview(images, wMm, hMm);
+        });
+      return;
+    }
 
-    const w = window.open('', '_blank', 'width=520,height=700');
+    openLabelPreview(images, wMm, hMm);
+    setNotice(
+      `تم تجهيز ${images.length} ملصق (${wMm}×${hMm} مم). من حوار الطباعة اختَر مقاس 38x25 وعطّل Fit.`,
+    );
+  }
+
+  function openLabelPreview(images: string[], wMm: number, hMm: number) {
+    const pages = images
+      .map((src, i) => `<div class="page"><img src="${src}" alt="label-${i + 1}"/></div>`)
+      .join('\n');
+    const w = window.open('', '_blank', 'width=420,height=560');
     if (!w) {
       setNotice('اسمح بالنوافذ المنبثقة للطباعة.');
       return;
     }
-
     w.document.write(`<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>ملصقات ${wMm}x${hMm}mm</title>
+<html><head><meta charset="utf-8"/><title>ملصقات ${wMm}x${hMm}</title>
 <style>
   @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: #fff; }
-  .page {
-    width: ${wMm}mm;
-    height: ${hMm}mm;
-    page-break-after: always;
-    page-break-inside: avoid;
-    overflow: hidden;
-  }
+  * { margin: 0; padding: 0; }
+  html, body { background: #fff; }
+  .page { width: ${wMm}mm; height: ${hMm}mm; page-break-after: always; }
   .page:last-child { page-break-after: auto; }
-  .page img {
-    width: ${wMm}mm;
-    height: ${hMm}mm;
-    display: block;
-    image-rendering: pixelated;
-  }
-  .hint {
-    font-family: Tahoma, Arial, sans-serif;
-    font-size: 13px;
-    padding: 12px;
-    color: #333;
-  }
-  @media print {
-    .hint { display: none !important; }
-    html, body { width: ${wMm}mm; }
-  }
-</style>
-</head>
-<body>
-<div class="hint no-print">معاينة الملصق — إذا ظهرت الصورة هنا والورق أبيض: من إعدادات XP-Q371U جرّب Orientation = Landscape، وعطّل Mirror. ثم Print.</div>
+  img { width: ${wMm}mm; height: ${hMm}mm; display: block; }
+  .bar { font-family: Tahoma,sans-serif; font-size: 12px; padding: 8px; }
+  @media print { .bar { display: none !important; } }
+</style></head><body>
+<div class="bar">معاينة — اختَر XP-Q371U ومقاس ${wMm}x${hMm} — عطّل Fit to page</div>
 ${pages}
 <script>
-(function(){
-  function go(){
-    try { window.focus(); window.print(); } catch(e) {}
-  }
-  // انتظر تحميل الصور
-  var imgs = document.images;
-  var left = imgs.length;
-  if (!left) { setTimeout(go, 300); return; }
-  function done(){ left--; if (left <= 0) setTimeout(go, 200); }
-  for (var i = 0; i < imgs.length; i++) {
-    if (imgs[i].complete) done();
-    else { imgs[i].onload = done; imgs[i].onerror = done; }
-  }
-})();
+setTimeout(function(){ try{ window.print(); }catch(e){} }, 400);
 <\/script>
-</body>
-</html>`);
+</body></html>`);
     w.document.close();
-    setNotice(
-      `تم تجهيز ${images.length} ملصق (${wMm}×${hMm} مم). تأكد أن المعاينة فيها صورة قبل الطباعة.`,
-    );
   }
 
   return (
