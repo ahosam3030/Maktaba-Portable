@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
 import { noticeClass, noticeKind } from './notice';
+import { code128DataUrl } from '../data/code128';
 
 type Product = {
   id: string;
@@ -12,55 +13,6 @@ type Product = {
   active?: boolean;
 };
 
-
-/** تحميل JsBarcode محليًا (من public) ثم رسم باركود كصورة — يعمل أوفلاين */
-function loadJsBarcode(): Promise<(el: HTMLCanvasElement | string, code: string, opts?: object) => void> {
-  const w = window as unknown as { JsBarcode?: (el: HTMLCanvasElement | string, code: string, opts?: object) => void };
-  if (w.JsBarcode) return Promise.resolve(w.JsBarcode);
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-maktaba-jsbarcode]');
-    if (existing) {
-      existing.addEventListener('load', () => {
-        if (w.JsBarcode) resolve(w.JsBarcode);
-        else reject(new Error('JsBarcode failed'));
-      });
-      return;
-    }
-    const s = document.createElement('script');
-    s.src = '/jsbarcode.min.js';
-    s.async = true;
-    s.dataset.maktabaJsbarcode = '1';
-    s.onload = () => {
-      if (w.JsBarcode) resolve(w.JsBarcode!);
-      else reject(new Error('JsBarcode missing after load'));
-    };
-    s.onerror = () => reject(new Error('تعذر تحميل مكتبة الباركود'));
-    document.head.appendChild(s);
-  });
-}
-
-function barcodePngDataUrl(
-  JsBarcode: (el: HTMLCanvasElement | string, code: string, opts?: object) => void,
-  code: string,
-  height: number,
-  barWidth: number,
-): string {
-  try {
-    const canvas = document.createElement('canvas');
-    JsBarcode(canvas, code, {
-      format: 'CODE128',
-      width: barWidth,
-      height: Math.max(12, height),
-      displayValue: false,
-      margin: 0,
-      background: '#ffffff',
-      lineColor: '#000000',
-    });
-    return canvas.toDataURL('image/png');
-  } catch {
-    return '';
-  }
-}
 
 function escapeHtml(s: string) {
   return s
@@ -257,20 +209,15 @@ export function Labels() {
     const codeFs = tiny ? 6 : labelH <= 25 ? 7 : 8;
     const bcBarWidth = tiny ? 1.0 : labelW <= 40 ? 1.15 : labelW <= 50 ? 1.25 : 1.4;
 
-    let JsBarcodeFn: (el: HTMLCanvasElement | string, code: string, opts?: object) => void;
-    try {
-      JsBarcodeFn = await loadJsBarcode();
-    } catch (e) {
-      setNotice('تعذر تجهيز الباركود. تأكد من وجود الملف jsbarcode.min.js ثم أعد البناء.');
-      return;
-    }
-
-    // توليد صور الباركود هنا (أوفلاين) قبل فتح نافذة الطباعة
     const barcodeCache = new Map<string, string>();
     for (const p of items) {
       const code = String(p.barcode);
       if (!barcodeCache.has(code)) {
-        barcodeCache.set(code, barcodePngDataUrl(JsBarcodeFn, code, bcH, bcBarWidth));
+        const mod = Math.max(1, Math.round(bcBarWidth));
+        barcodeCache.set(
+          code,
+          code128DataUrl(code, { height: bcH, moduleWidth: mod, margin: 2 }),
+        );
       }
     }
 
