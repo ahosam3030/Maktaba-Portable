@@ -12,6 +12,56 @@ type Product = {
   active?: boolean;
 };
 
+
+/** تحميل JsBarcode محليًا (من public) ثم رسم باركود كصورة — يعمل أوفلاين */
+function loadJsBarcode(): Promise<(el: HTMLCanvasElement | string, code: string, opts?: object) => void> {
+  const w = window as unknown as { JsBarcode?: (el: HTMLCanvasElement | string, code: string, opts?: object) => void };
+  if (w.JsBarcode) return Promise.resolve(w.JsBarcode);
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-maktaba-jsbarcode]');
+    if (existing) {
+      existing.addEventListener('load', () => {
+        if (w.JsBarcode) resolve(w.JsBarcode);
+        else reject(new Error('JsBarcode failed'));
+      });
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = '/jsbarcode.min.js';
+    s.async = true;
+    s.dataset.maktabaJsbarcode = '1';
+    s.onload = () => {
+      if (w.JsBarcode) resolve(w.JsBarcode!);
+      else reject(new Error('JsBarcode missing after load'));
+    };
+    s.onerror = () => reject(new Error('تعذر تحميل مكتبة الباركود'));
+    document.head.appendChild(s);
+  });
+}
+
+function barcodePngDataUrl(
+  JsBarcode: (el: HTMLCanvasElement | string, code: string, opts?: object) => void,
+  code: string,
+  height: number,
+  barWidth: number,
+): string {
+  try {
+    const canvas = document.createElement('canvas');
+    JsBarcode(canvas, code, {
+      format: 'CODE128',
+      width: barWidth,
+      height: Math.max(12, height),
+      displayValue: false,
+      margin: 0,
+      background: '#ffffff',
+      lineColor: '#000000',
+    });
+    return canvas.toDataURL('image/png');
+  } catch {
+    return '';
+  }
+}
+
 function escapeHtml(s: string) {
   return s
     .replace(/&/g, '&amp;')
@@ -174,7 +224,7 @@ export function Labels() {
     setSelected({});
   }
 
-  function printLabels() {
+  async function printLabels() {
     const items: Array<Product & { copies: number }> = [];
     for (const p of products) {
       const copies = selected[p.id];
@@ -195,18 +245,52 @@ export function Labels() {
     const phoneLine = phone.trim();
     const extra = extraLine.trim();
 
+    const thermal = isRoll || (isFixedSize && cols === 1);
+    const padMm = thermal ? (labelH <= 25 ? 0.6 : 1.0) : 2;
+    const tiny = labelH <= 12;
+    const bcH = thermal
+      ? (tiny ? Math.max(10, Math.round(labelH * 0.4)) : Math.max(16, Math.min(40, Math.round(labelH * 0.5))))
+      : Math.max(22, Math.min(48, Math.round(labelH * 0.7)));
+    const nameFs = tiny ? 7 : labelH <= 20 ? 8 : labelH <= 25 ? 9 : labelH <= 30 ? 10 : 11;
+    const priceFs = tiny ? 8 : labelH <= 20 ? 9 : labelH <= 30 ? 11 : 13;
+    const storeFs = tiny ? 5 : labelH <= 25 ? 7 : 8;
+    const codeFs = tiny ? 6 : labelH <= 25 ? 7 : 8;
+    const bcBarWidth = tiny ? 1.0 : labelW <= 40 ? 1.15 : labelW <= 50 ? 1.25 : 1.4;
+
+    let JsBarcodeFn: (el: HTMLCanvasElement | string, code: string, opts?: object) => void;
+    try {
+      JsBarcodeFn = await loadJsBarcode();
+    } catch (e) {
+      setNotice('تعذر تجهيز الباركود. تأكد من وجود الملف jsbarcode.min.js ثم أعد البناء.');
+      return;
+    }
+
+    // توليد صور الباركود هنا (أوفلاين) قبل فتح نافذة الطباعة
+    const barcodeCache = new Map<string, string>();
+    for (const p of items) {
+      const code = String(p.barcode);
+      if (!barcodeCache.has(code)) {
+        barcodeCache.set(code, barcodePngDataUrl(JsBarcodeFn, code, bcH, bcBarWidth));
+      }
+    }
+
     const labelsHtml = items
       .flatMap((p) =>
         Array.from({ length: p.copies }, () => {
           const price = Number(p.salePrice) || 0;
           const tinyLabel = labelH <= 12;
           const nameShort = tinyLabel && p.name.length > 12 ? p.name.slice(0, 11) + '…' : p.name;
+          const code = String(p.barcode);
+          const img = barcodeCache.get(code) || '';
+          const barcodeHtml = img
+            ? `<img class="bc" src="${img}" alt="${escapeHtml(code)}" width="95%" height="${bcH}" />`
+            : `<div class="code" dir="ltr" style="font-size:${codeFs + 2}px;font-weight:700">${escapeHtml(code)}</div>`;
           return `<div class="label">
   ${showStoreName && store && !tinyLabel ? `<div class="store">${escapeHtml(store)}</div>` : ''}
   ${showName ? `<div class="name">${escapeHtml(nameShort)}</div>` : ''}
   ${showPrice ? `<div class="price">${price.toFixed(2)}</div>` : ''}
-  <svg class="bc" data-barcode="${escapeHtml(String(p.barcode))}"></svg>
-  ${showBarcodeText && !tinyLabel ? `<div class="code" dir="ltr">${escapeHtml(String(p.barcode))}</div>` : ''}
+  ${barcodeHtml}
+  ${showBarcodeText || !img ? `<div class="code" dir="ltr">${escapeHtml(code)}</div>` : ''}
   ${showPhone && phoneLine && !tinyLabel ? `<div class="phone" dir="ltr">${escapeHtml(phoneLine)}</div>` : ''}
   ${extra && !tinyLabel ? `<div class="extra">${escapeHtml(extra)}</div>` : ''}
 </div>`;
@@ -214,30 +298,17 @@ export function Labels() {
       )
       .join('\n');
 
-    const w = window.open('', '_blank', 'width=900,height=700');
+    const w = window.open('', '_blank', 'width=420,height=640');
     if (!w) {
       setNotice('اسمح بالنوافذ المنبثقة للطباعة.');
       return;
     }
-    // رول حراري: كل ملصق = صفحة واحدة المقاس = عرض×ارتفاع الملصق بالملم
-    const thermal = isRoll || (isFixedSize && cols === 1);
-    const padMm = thermal ? (labelH <= 25 ? 0.8 : 1.2) : 2;
-    const tiny = labelH <= 12;
-    const bcH = thermal
-      ? (tiny ? Math.max(8, Math.round(labelH * 0.45)) : Math.max(14, Math.min(36, Math.round(labelH * 0.55))))
-      : Math.max(22, Math.min(48, Math.round(labelH * 0.7)));
-    const nameFs = tiny ? 6 : labelH <= 20 ? 8 : labelH <= 25 ? 9 : labelH <= 30 ? 10 : 11;
-    const priceFs = tiny ? 7 : labelH <= 20 ? 9 : labelH <= 30 ? 11 : 13;
-    const storeFs = tiny ? 5 : labelH <= 25 ? 7 : 8;
-    const codeFs = tiny ? 5 : labelH <= 25 ? 6 : 7;
-    const bcBarWidth = tiny ? 0.9 : labelW <= 40 ? 1.0 : labelW <= 50 ? 1.15 : 1.3;
 
     let pageCss: string;
     let sheetCss: string;
     let labelCss: string;
 
     if (thermal && isFixedSize) {
-      // صفحة = ملصق واحد تمامًا (مهم للطابعة الحرارية)
       pageCss = `size: ${labelW}mm ${labelH}mm; margin: 0;`;
       sheetCss = 'margin:0;padding:0;width:100%;';
       labelCss = `
@@ -248,7 +319,8 @@ export function Labels() {
         page-break-after: always; page-break-inside: avoid;
         border: none; border-radius: 0;
         display: flex; flex-direction: column;
-        align-items: center; justify-content: center; gap: 0;
+        align-items: center; justify-content: center; gap: 1px;
+        color: #000; background: #fff;
       `;
     } else if (isFixedSize) {
       pageCss = 'margin: 5mm;';
@@ -258,6 +330,7 @@ export function Labels() {
         border: 0.3mm solid #ccc; padding: ${padMm}mm;
         page-break-inside: avoid;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
+        color: #000; background: #fff;
       `;
     } else {
       pageCss = 'margin: 6mm;';
@@ -266,25 +339,25 @@ export function Labels() {
         min-height: 28mm; border: 1px dashed #94a3b8; border-radius: 3px; padding: 2mm;
         page-break-inside: avoid;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
+        color: #000; background: #fff;
       `;
     }
 
     w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
 <title>ملصقات ${isFixedSize ? labelW + 'x' + labelH + 'mm' : 'A4'}</title>
-<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>
 <style>
   @page { ${pageCss} }
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; width: 100%; background: #fff; }
+  html, body { margin: 0; padding: 0; width: 100%; background: #fff; color: #000; }
   body { font-family: Arial, Tahoma, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .sheet { ${sheetCss} }
   .label { ${labelCss} }
   .store { font-size: ${storeFs}px; font-weight: 700; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .name { font-size: ${nameFs}px; font-weight: 700; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .price { font-size: ${priceFs}px; font-weight: 800; line-height: 1.1; margin: 0; }
-  .code { font-size: ${codeFs}px; letter-spacing: 0.02em; line-height: 1.1; direction: ltr; unicode-bidi: embed; }
-  .phone, .extra { font-size: ${codeFs}px; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; }
-  svg.bc { width: 92%; max-width: 92%; height: ${bcH}px; display: block; margin: 1px auto; }
+  .name { font-size: ${nameFs}px; font-weight: 700; line-height: 1.15; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #000; }
+  .price { font-size: ${priceFs}px; font-weight: 800; line-height: 1.1; margin: 0; color: #000; }
+  .code { font-size: ${codeFs}px; letter-spacing: 0.03em; line-height: 1.1; direction: ltr; unicode-bidi: isolate; color: #000; text-align: center; }
+  .phone, .extra { font-size: ${codeFs}px; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; color: #000; }
+  img.bc { width: 96%; max-width: 96%; height: ${bcH}px; object-fit: contain; display: block; margin: 1px auto; image-rendering: pixelated; }
   @media print {
     .label { border: none !important; }
     .label:last-child { page-break-after: auto; }
@@ -292,25 +365,8 @@ export function Labels() {
 </style></head><body>
 <div class="sheet">${labelsHtml}</div>
 <script>
-  document.querySelectorAll('svg.bc').forEach(function(el) {
-    var code = el.getAttribute('data-barcode') || '';
-    if (!code) return;
-    try {
-      JsBarcode(el, code, {
-        format: 'CODE128',
-        width: ${bcBarWidth},
-        height: ${bcH},
-        displayValue: false,
-        margin: 0,
-        background: '#ffffff',
-        lineColor: '#000000'
-      });
-    } catch (e) {
-      el.outerHTML = '<div class="code" dir="ltr">' + code + '</div>';
-    }
-  });
   window.onload = function() {
-    setTimeout(function() { window.print(); }, 400);
+    setTimeout(function() { window.print(); }, 300);
   };
 <\/script>
 </body></html>`);
@@ -320,7 +376,7 @@ export function Labels() {
     setNotice(
       `جاهز: ${totalCopies} ملصق${sizeNote}.` +
         (thermal
-          ? ' في نافذة الطباعة: اختر طابعة الملصقات + مقاس الورق بنفس الملصق + هوامش صفر + بدون ملاءمة للصفحة.'
+          ? ' في نافذة الطباعة: مقاس الورق = الملصق + هوامش صفر + بدون ملاءمة للصفحة.'
           : ' اختر A4 إن لزم.'),
     );
   }
