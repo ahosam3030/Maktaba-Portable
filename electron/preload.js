@@ -4,5 +4,6 @@ contextBridge.exposeInMainWorld('maktabaDesktop', {
   isDesktop: true,
   printLabels: (payload) => ipcRenderer.invoke('print-labels', payload),
   printLabelsTspl: (payload) => ipcRenderer.invoke('print-labels-tspl', payload),
+  printLabelsGdi: (payload) => ipcRenderer.invoke('print-labels-gdi', payload),
   listPrinters: () => ipcRenderer.invoke('list-printers'),
 });

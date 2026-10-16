@@ -893,6 +893,102 @@ ${pages}
       error: okCount ? null : 'raw-print-failed',
     };
   });
+
+  ipcMain.handle('print-labels-gdi', async (_event, payload) => {
+    const images = (payload && payload.images) || [];
+    if (!images.length) return { ok: false, error: 'no-images' };
+
+    let printerName = (payload && payload.printerName) || '';
+    try {
+      const printers = mainWindow ? await mainWindow.webContents.getPrintersAsync() : [];
+      if (!printerName) {
+        const hit =
+          (printers || []).find((p) => /xp-?q|xprinter|371|380|label|q371/i.test(String(p.name || ''))) ||
+          (printers || []).find((p) => p.isDefault);
+        printerName = hit ? hit.name : ((printers || [])[0] ? printers[0].name : '');
+      }
+    } catch (_) {}
+    if (!printerName) return { ok: false, error: 'no-printer' };
+
+    const os = require('os');
+    const { execFile } = require('child_process');
+    const tmpDir = path.join(os.tmpdir(), 'maktaba-label-print');
+    try {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    } catch (_) {}
+
+    let printed = 0;
+    let lastError = null;
+
+    for (let i = 0; i < images.length; i++) {
+      const src = String(images[i] || '');
+      const m = /^data:image\/png;base64,(.+)$/.exec(src);
+      if (!m) {
+        lastError = 'bad-image';
+        continue;
+      }
+      const filePath = path.join(tmpDir, 'label-' + Date.now() + '-' + i + '.png');
+      try {
+        fs.writeFileSync(filePath, Buffer.from(m[1], 'base64'));
+      } catch (e) {
+        lastError = 'write-fail';
+        continue;
+      }
+
+      const printerEsc = String(printerName).replace(/'/g, "''");
+      const pathEsc = filePath.replace(/'/g, "''");
+      const ps =
+        "$ErrorActionPreference='Stop';\n" +
+        "Add-Type -AssemblyName System.Drawing;\n" +
+        "$printer='" + printerEsc + "';\n" +
+        "$path='" + pathEsc + "';\n" +
+        "$img=[System.Drawing.Image]::FromFile($path);\n" +
+        "try {\n" +
+        "  $pd=New-Object System.Drawing.Printing.PrintDocument;\n" +
+        "  $pd.PrinterSettings.PrinterName=$printer;\n" +
+        "  if(-not $pd.PrinterSettings.IsValid){throw 'Printer not valid'};\n" +
+        "  $pd.DocumentName='MaktabaLabel';\n" +
+        "  $pd.DefaultPageSettings.Margins=New-Object System.Drawing.Printing.Margins(0,0,0,0);\n" +
+        "  $script:imgRef=$img;\n" +
+        "  $pd.add_PrintPage({\n" +
+        "    param($sender,$e);\n" +
+        "    $r=$e.PageBounds;\n" +
+        "    if($r.Width -lt 1 -or $r.Height -lt 1){$r=$e.MarginBounds};\n" +
+        "    $e.Graphics.DrawImage($script:imgRef,$r);\n" +
+        "    $e.HasMorePages=$false\n" +
+        "  });\n" +
+        "  $pd.Print();\n" +
+        "} finally { $img.Dispose() }\n";
+
+      const ok = await new Promise((resolve) => {
+        execFile(
+          'powershell.exe',
+          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+          { windowsHide: true, timeout: 90000 },
+          (err, _stdout, stderr) => {
+            if (err) {
+              lastError = String(stderr || err.message || err).slice(0, 240);
+              resolve(false);
+            } else resolve(true);
+          },
+        );
+      });
+      try {
+        fs.unlinkSync(filePath);
+      } catch (_) {}
+      if (ok) printed++;
+    }
+
+    return {
+      ok: printed > 0,
+      printed,
+      total: images.length,
+      printerName,
+      error: printed > 0 ? null : lastError || 'gdi-failed',
+    };
+  });
+
+
 }
 
 

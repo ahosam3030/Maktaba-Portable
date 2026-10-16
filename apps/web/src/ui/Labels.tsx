@@ -7,6 +7,12 @@ declare global {
         widthMm: number;
         heightMm: number;
       }) => Promise<{ ok?: boolean; error?: string | null }>;
+      printLabelsGdi?: (p: {
+        images: string[];
+        widthMm: number;
+        heightMm: number;
+        printerName?: string;
+      }) => Promise<{ ok?: boolean; error?: string | null; printed?: number; printerName?: string }>;
       printLabelsTspl?: (p: {
         labels: Array<{ name: string; price: number; barcode: string; copies: number }>;
         widthMm: number;
@@ -240,11 +246,32 @@ export function Labels() {
       return;
     }
 
-    // معاينة فقط — بدون إرسال تلقائي للطابعة (كان يسبب سحب ورق فاضي كثير)
+    const desktop = window.maktabaDesktop;
+    if (desktop && typeof desktop.printLabelsGdi === 'function') {
+      setNotice(`جاري الطباعة المباشرة لـ ${images.length} ملصق (${wMm}×${hMm} مم)…`);
+      desktop
+        .printLabelsGdi({ images, widthMm: wMm, heightMm: hMm })
+        .then((res) => {
+          if (res && res.ok) {
+            setNotice(
+              `تمت الطباعة على «${res.printerName || 'الطابعة'}» — ${res.printed}/${images.length} ملصق.`,
+            );
+          } else {
+            setNotice(
+              `تعذرت الطباعة المباشرة (${res?.error || 'فشل'}). تم فتح المعاينة — حمّل PNG أو راجع اسم الطابعة.`,
+            );
+            openLabelPreview(images, wMm, hMm, items);
+          }
+        })
+        .catch(() => {
+          setNotice('تعذرت الطباعة المباشرة — فتح المعاينة.');
+          openLabelPreview(images, wMm, hMm, items);
+        });
+      return;
+    }
+
     openLabelPreview(images, wMm, hMm, items);
-    setNotice(
-      `معاينة ${images.length} ملصق (${wMm}×${hMm} مم عرض×ارتفاع). حمّل PNG واطبع من الرسام — أو من المعاينة زر الطباعة المباشرة مرة واحدة.`,
-    );
+    setNotice(`معاينة ${images.length} ملصق. شغّل من start-desktop.bat للطباعة المباشرة.`);
   }
 
   function openLabelPreview(
