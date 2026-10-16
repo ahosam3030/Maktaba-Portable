@@ -194,8 +194,7 @@ export function Printing() {
 
   function printJob(job: Receipt) {
     const inv = loadInvoiceSettings();
-    const paper: 'thermal_80' | 'thermal_58' | 'a4' = 'thermal_80';
-    const widthMm = paper === 'thermal_58' ? 58 : paper === 'a4' ? 210 : 80;
+    const widthMm = 80; // Xprinter thermal 80mm
     const w = window.open('', '_blank', 'width=800,height=700');
     if (!w) {
       setNotice('اسمح بالنوافذ المنبثقة لإتمام الطباعة.');
