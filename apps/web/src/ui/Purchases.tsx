@@ -1,3 +1,4 @@
+import { printThermalHtml, thermalDoc } from '../data/thermalPrint';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest, getToken } from '../data/api';
 import { ScanModeOverlay } from './ScanModeOverlay';
@@ -516,23 +517,37 @@ export function Purchases() {
   }
 
   function printInvoice(invoice: Invoice) {
-    const w = window.open('', '_blank');
-    if (!w) return;
-    const rows = invoice.items.map((l) =>
-      `<tr><td>${escapeHtml(l.productName)}</td><td>${l.unit === 'PACK' ? 'علبة' : 'قطعة'}</td><td>${num(l.quantity)}</td><td>${l.piecesPerPack}</td><td>${money(num(l.unitCost))}</td><td>${money(num(l.lineTotal))}</td></tr>`
-    ).join('');
-    w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة ${escapeHtml(invoice.invoiceNumber)}</title>
-<style>body{font-family:Tahoma,Arial;padding:24px;color:#222}h1{font-size:22px}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #bbb;padding:8px;text-align:right;font-size:13px}th{background:#eee}.totals{margin-top:20px;width:320px;margin-right:auto}.totals div{display:flex;justify-content:space-between;padding:5px}</style>
-</head><body><h1>فاتورة مشتريات / وارد</h1>
-<p>رقم الفاتورة: ${escapeHtml(invoice.invoiceNumber)} &nbsp; | &nbsp; التاريخ: ${escapeHtml(String(invoice.invoiceDate).slice(0, 10))}</p>
-<p>المورد: ${escapeHtml(invoice.supplier?.name || '')}</p>
-<table><thead><tr><th>الصنف</th><th>الوحدة</th><th>الكمية</th><th>قطعة/علبة</th><th>سعر الوحدة</th><th>الإجمالي</th></tr></thead><tbody>${rows}</tbody></table>
-<div class="totals"><div><span>قبل الخصم</span><b>${money(num(invoice.subtotal))}</b></div>
-<div><span>الخصم</span><b>${money(num(invoice.discount))}</b></div>
-<div><span>الإجمالي</span><b>${money(num(invoice.total))}</b></div>
-<div><span>المدفوع</span><b>${money(num(invoice.paidAmount))}</b></div></div>
-<script>window.onload=()=>window.print()</script></body></html>`);
-    w.document.close();
+    const rows = (invoice.items || [])
+      .map(
+        (l, i) => `<tr>
+        <td class="num">${i + 1}</td>
+        <td>${escapeHtml(l.productName)}</td>
+        <td class="qty">${num(l.quantity)}</td>
+        <td class="money">${money(num(l.unitCost))}</td>
+        <td class="money">${money(num(l.lineTotal))}</td>
+      </tr>`,
+      )
+      .join('');
+    const body = `
+<div class="center"><div class="brand">فاتورة وارد</div></div>
+<hr class="hr"/>
+<div class="meta">رقم: <strong dir="ltr">${escapeHtml(invoice.invoiceNumber)}</strong></div>
+<div class="meta">التاريخ: <span dir="ltr">${escapeHtml(String(invoice.invoiceDate).slice(0, 10))}</span></div>
+<div class="meta">المورد: <strong>${escapeHtml(invoice.supplier?.name || '')}</strong></div>
+<hr class="hr"/>
+<table>
+  <thead><tr><th class="num">#</th><th>الصنف</th><th class="qty">كمية</th><th class="money">تكلفة</th><th class="money">إجمالي</th></tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<hr class="hr"/>
+<div class="totals">
+  <div class="row"><span>قبل الخصم</span><span dir="ltr">${money(num(invoice.subtotal))}</span></div>
+  <div class="row"><span>الخصم</span><span dir="ltr">${money(num(invoice.discount))}</span></div>
+  <div class="row grand"><span>الإجمالي</span><span dir="ltr">${money(num(invoice.total))}</span></div>
+  <div class="row"><span>المدفوع</span><span dir="ltr">${money(num(invoice.paidAmount))}</span></div>
+</div>
+<p class="foot">80mm</p>`;
+    printThermalHtml(thermalDoc(`وارد ${invoice.invoiceNumber}`, body), `وارد ${invoice.invoiceNumber}`);
   }
 
   const filtered = useMemo(() => {

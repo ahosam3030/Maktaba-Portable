@@ -194,7 +194,7 @@ export function Printing() {
 
   function printJob(job: Receipt) {
     const inv = loadInvoiceSettings();
-    const paper = inv.paperSize || 'thermal_80';
+    const paper = 'thermal_80';
     const widthMm = paper === 'thermal_58' ? 58 : paper === 'a4' ? 210 : 80;
     const w = window.open('', '_blank', 'width=800,height=700');
     if (!w) {
@@ -219,7 +219,7 @@ export function Printing() {
           `<tr><td>${escapeHtml(it.serviceName)}</td><td>${escapeHtml(it.description || '—')}</td><td>${Number(it.quantity)}</td><td>${Number(it.unitPrice).toFixed(2)}</td><td>${Number(it.lineTotal).toFixed(2)}</td></tr>`,
       )
       .join('');
-    w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>@page{margin:2mm}body{width:${widthMm}mm;max-width:${widthMm}mm;margin:0 auto}</style><title>فاتورة ${escapeHtml(job.receiptNo)}</title>
+    w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><style>@page{size:80mm auto;margin:0}body{width:${widthMm}mm;max-width:${widthMm}mm;margin:0 auto}</style><title>فاتورة ${escapeHtml(job.receiptNo)}</title>
 <style>body{font-family:Tahoma,Arial,sans-serif;padding:24px;color:#111}h1{text-align:center;font-size:22px}p{margin:7px 0}.line{border-top:1px dashed #888;margin:14px 0}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:center;font-size:13px}th{background:#f3f6f6}.total{font-size:18px;font-weight:bold}</style>
 </head><body>
 <h1>فاتورة خدمات</h1>

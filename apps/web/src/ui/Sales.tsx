@@ -3,6 +3,7 @@ import { apiRequest } from '../data/api';
 import { ScanModeOverlay } from './ScanModeOverlay';
 import { loadSaleUnits } from '../data/units';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
+import { printThermalHtml, thermalDoc } from '../data/thermalPrint';
 import { IconReceipt, IconWallet, IconRefresh, IconChart, IconCart } from './Icons';
 import { noticeClass, noticeKind } from './notice';
 
@@ -344,425 +345,76 @@ export function Sales() {
   }
 
   function printSale(sale: Sale) {
-    const w = window.open('', '_blank');
-    if (!w) { setNotice('اسمح بالنوافذ المنبثقة لطباعة الفاتورة.'); return; }
     const cfg = loadInvoiceSettings();
-    const centerName = cfg.watermarkText || cfg.brandTitle;
-    const phone = cfg.phone;
-    const address = cfg.address;
-    const brandTitle = cfg.brandTitle;
-    const brandSubtitle = cfg.brandSubtitle;
-    const invoiceTitle = cfg.invoiceTitle;
-    const footerText = cfg.footerText;
-    const serviceTagsHtml = cfg.serviceTags.map((t) => `<span>${escapeHtml(t)}</span>`).join('');
+    const centerName = cfg.watermarkText || cfg.brandTitle || 'المركز';
+    const phone = cfg.phone || '';
+    const address = cfg.address || '';
+    const brandSubtitle = cfg.brandSubtitle || '';
+    const invoiceTitle = cfg.invoiceTitle || 'فاتورة مبيعات';
+    const footerText = cfg.footerText || 'شكرًا لثقتكم بنا';
     const items = sale.items || [];
-    const maxRows = Math.max(10, items.length);
-    const rows = Array.from({ length: maxRows }, (_, i) => {
-      const l = items[i];
-      if (!l) {
-        return `<tr><td class="num">${i + 1}</td><td></td><td></td><td></td><td></td></tr>`;
-      }
-      return `<tr>
+    const rows = items
+      .map(
+        (l, i) => `<tr>
         <td class="num">${i + 1}</td>
         <td>${escapeHtml(l.productName)}</td>
-        <td>${qty(Number(l.quantity))}</td>
-        <td>${Number(l.unitPrice).toFixed(2)}</td>
-        <td>${Number(l.lineTotal).toFixed(2)}</td>
-      </tr>`;
-    }).join('');
+        <td class="qty">${qty(Number(l.quantity))}</td>
+        <td class="money">${Number(l.unitPrice).toFixed(2)}</td>
+        <td class="money">${Number(l.lineTotal).toFixed(2)}</td>
+      </tr>`,
+      )
+      .join('');
     const paid = Number(sale.paidAmount);
     const tot = Number(sale.total);
     const sub = Number(sale.subtotal);
     const disc = Number(sale.discount);
-    const dateStr = new Date(sale.saleDate).toLocaleDateString('en-GB');
+    const remain = Math.max(0, tot - paid);
+    const dateStr = new Date(sale.saleDate).toLocaleString('en-GB');
     const invNo = escapeHtml(sale.invoiceNumber);
     const customer = escapeHtml(sale.customerName || 'عميل نقدي');
-    const wmText = escapeHtml(centerName);
-    // شبكة علامة مائية مكررة على كامل الصفحة
-    const wmCells = Array.from({ length: 48 }, () =>
-      `<span class="wm-cell">${wmText}<br/><small>${invNo}</small></span>`
-    ).join('');
+    const status =
+      paid <= 0.001 && tot > 0.001 ? 'آجل' : remain > 0.001 ? 'جزئي' : 'نقدي';
+    const tags = (cfg.serviceTags || []).map((x) => escapeHtml(x)).join(' · ');
 
-    w.document.write(`<!doctype html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="utf-8">
-<title>فاتورة مبيعات ${invNo}</title>
-<style>
-  @page { size: A4; margin: 8mm; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-    margin: 0; padding: 0; color: #123055;
-    background: #fff;
-  }
-  .sheet {
-    position: relative;
-    width: 100%;
-    max-width: 210mm;
-    margin: 0 auto;
-    padding: 0 0 16px;
-    overflow: hidden;
-    min-height: 277mm;
-  }
-
-  /* علامة مائية مكررة على كل الفاتورة */
-  .watermark {
-    position: absolute;
-    inset: 0;
-    z-index: 50;
-    pointer-events: none;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-auto-rows: 88px;
-    align-items: center;
-    justify-items: center;
-    opacity: 1;
-    overflow: hidden;
-  }
-  .wm-cell {
-    transform: rotate(-30deg);
-    font-size: 16px;
-    font-weight: 900;
-    color: rgba(13, 58, 122, 0.22);
-    text-align: center;
-    line-height: 1.4;
-    user-select: none;
-    white-space: nowrap;
-  }
-  .wm-cell small {
-    display: inline-block;
-    margin-top: 2px;
-    font-size: 12px;
-    font-weight: 800;
-    color: rgba(13, 58, 122, 0.24);
-    letter-spacing: 0.4px;
-  }
-  .content { position: relative; z-index: 1; }
-
-  /* هيدر مطابق لهوية المركز */
-  .hero {
-    position: relative;
-    overflow: hidden;
-    background: linear-gradient(180deg, #eef5ff 0%, #ffffff 70%);
-    padding: 0 0 8px;
-    border-bottom: 3px solid #1a4f9c;
-  }
-  .hero-bg-left {
-    position: absolute;
-    top: -30px; right: -40px;
-    width: 200px; height: 180px;
-    background: radial-gradient(circle at 30% 40%, #1a4f9c 0%, #0d2f66 60%, transparent 70%);
-    border-radius: 50%;
-    opacity: 0.95;
-  }
-  .hero-bg-right {
-    position: absolute;
-    top: -20px; left: -50px;
-    width: 190px; height: 170px;
-    background: radial-gradient(circle at 70% 40%, #1a4f9c 0%, #0a2558 65%, transparent 72%);
-    border-radius: 50%;
-    opacity: 0.95;
-  }
-  .hero-inner {
-    position: relative;
-    z-index: 2;
-    display: grid;
-    grid-template-columns: 110px 1fr 120px;
-    gap: 8px;
-    align-items: center;
-    padding: 14px 16px 10px;
-  }
-  .hero-art {
-    text-align: center;
-    font-size: 28px;
-    line-height: 1.2;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,.12));
-  }
-  .hero-art .row { letter-spacing: 2px; }
-  .hero-brand { text-align: center; }
-  .hero-brand h1 {
-    margin: 0;
-    font-size: 30px;
-    color: #0a2f6e;
-    font-weight: 900;
-    letter-spacing: 1px;
-  }
-  .hero-brand .sub {
-    margin: 4px 0 0;
-    font-size: 13px;
-    color: #1a4f9c;
-    font-weight: 800;
-  }
-  .hero-brand .addr {
-    margin: 5px 0 0;
-    font-size: 11px;
-    color: #3d5f8c;
-    font-weight: 600;
-  }
-  .hero-brand .phone {
-    margin: 4px 0 0;
-    font-size: 13px;
-    color: #0d2f66;
-    font-weight: 800;
-  }
-  .hero-side {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-  }
-  .hero-logo {
-    width: 58px; height: 58px;
-    border-radius: 50%;
-    background: linear-gradient(145deg, #0d3a7a, #1a4f9c);
-    border: 3px solid #e8a317;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 26px;
-    box-shadow: 0 3px 10px rgba(13,47,102,.3);
-  }
-  .svc-tags {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    width: 100%;
-  }
-  .svc-tags span {
-    display: block;
-    background: #0d2f66;
-    color: #fff;
-    font-size: 9px;
-    font-weight: 700;
-    text-align: center;
-    padding: 3px 4px;
-    border-radius: 4px;
-    border-right: 3px solid #e8a317;
-  }
-
-  .body-pad { padding: 12px 16px 0; }
-
-  .title-wrap { text-align: center; margin: 2px 0 12px; }
-  .title-wrap .title {
-    display: inline-block;
-    background: linear-gradient(135deg, #1a4f9c, #0d2f66);
-    color: #fff;
-    font-size: 16px;
-    font-weight: 900;
-    padding: 7px 42px;
-    border-radius: 24px;
-    border: 2px solid #e8a317;
-    box-shadow: 0 2px 0 #0a2558;
-  }
-
-  .meta {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px 14px;
-    margin-bottom: 12px;
-    font-size: 12.5px;
-  }
-  .meta .field {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    border: 1.5px solid #9eb6d8;
-    border-radius: 6px;
-    overflow: hidden;
-    background: rgba(255,255,255,0.9);
-    min-height: 34px;
-  }
-  .meta .field label {
-    background: #1a4f9c;
-    color: #fff;
-    font-weight: 800;
-    font-size: 11px;
-    padding: 8px 10px;
-    white-space: nowrap;
-    min-width: 78px;
-    text-align: center;
-  }
-  .meta .field span {
-    flex: 1;
-    padding: 6px 10px;
-    font-weight: 700;
-    color: #0d2f66;
-  }
-
-  table.items {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12.5px;
-    margin-bottom: 12px;
-    background: rgba(255,255,255,0.88);
-  }
-  table.items th, table.items td {
-    border: 1px solid #9eb6d8;
-    padding: 7px 6px;
-    text-align: center;
-  }
-  table.items th { color: #fff; font-weight: 800; }
-  table.items th.col-n { background: #e89b1a; width: 34px; }
-  table.items th.col-name { background: #1a4f9c; text-align: right; }
-  table.items th.col-qty { background: #1e9e6a; width: 68px; }
-  table.items th.col-price { background: #5b4fcf; width: 88px; }
-  table.items th.col-total { background: #d6455d; width: 92px; }
-  table.items td.num { background: #fff7e8; font-weight: 700; color: #b87a0c; }
-  table.items td:nth-child(2) { text-align: right; }
-  table.items tbody tr { height: 27px; }
-
-  .bottom {
-    display: grid;
-    grid-template-columns: 1.15fr 0.95fr;
-    gap: 12px;
-  }
-  .notes, .totals {
-    border: 1.5px solid #9eb6d8;
-    border-radius: 8px;
-    padding: 10px 12px;
-    background: rgba(247, 250, 255, 0.92);
-    min-height: 88px;
-  }
-  .notes h3 {
-    margin: 0 0 8px;
-    display: inline-block;
-    background: #e89b1a;
-    color: #1a2a4a;
-    font-size: 12px;
-    padding: 3px 12px;
-    border-radius: 12px;
-  }
-  .notes .lines { border-bottom: 1px dotted #9eb6d8; height: 20px; margin: 4px 0; }
-  .totals table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .totals td { padding: 5px 8px; border-bottom: 1px solid #d0dff2; }
-  .totals td:last-child { text-align: left; font-weight: 700; direction: ltr; }
-  .totals tr.grand td {
-    background: #e8f0ff;
-    font-weight: 900;
-    color: #0d2f66;
-    font-size: 14px;
-    border-bottom: none;
-  }
-
-  .thanks {
-    text-align: center;
-    margin: 16px 0 8px;
-    font-weight: 800;
-    color: #0d3a7a;
-    font-size: 14px;
-  }
-  .footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    margin: 0 16px;
-    padding: 8px 4px;
-    border-top: 2px solid #1a4f9c;
-    font-size: 11px;
-    color: #355a8c;
-  }
-  .bottom-wave {
-    height: 6px;
-    margin-top: 10px;
-    background: linear-gradient(90deg, #0a2a5c 0%, #1a4f9c 40%, #e8a317 70%, #0a2a5c 100%);
-  }
-  .auth-strip {
-    text-align: center;
-    font-size: 9px;
-    color: #7a8fa8;
-    margin: 6px 16px 0;
-  }
-
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .sheet { max-width: none; }
-  }
-</style>
-</head>
-<body>
-  <div class="sheet">
-    <div class="watermark" aria-hidden="true">${wmCells}</div>
-    <div class="content">
-      <div class="hero">
-        <div class="hero-bg-left"></div>
-        <div class="hero-bg-right"></div>
-        <div class="hero-inner">
-          <div class="hero-art" aria-hidden="true">
-            <div class="row">📚🖨️</div>
-            <div class="row">💻✏️📐</div>
-          </div>
-          <div class="hero-brand">
-            <h1>${escapeHtml(brandTitle)}</h1>
-            <p class="sub">${escapeHtml(brandSubtitle)}</p>
-            <p class="addr">${escapeHtml(address)}</p>
-            <p class="phone">تليفون / واتساب: <span dir="ltr">${escapeHtml(phone)}</span></p>
-          </div>
-          <div class="hero-side">
-            <div class="hero-logo">🎓</div>
-            <div class="svc-tags">${serviceTagsHtml}</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="body-pad">
-        <div class="title-wrap"><span class="title">${escapeHtml(invoiceTitle)}</span></div>
-
-        <div class="meta">
-          <div class="field"><label>اسم العميل</label><span>${customer}</span></div>
-          <div class="field"><label>التاريخ</label><span>${escapeHtml(dateStr)}</span></div>
-          <div class="field"><label>رقم الهاتف</label><span dir="ltr">—</span></div>
-          <div class="field"><label>رقم الفاتورة</label><span dir="ltr">${invNo}</span></div>
-        </div>
-
-        <table class="items">
-          <thead>
-            <tr>
-              <th class="col-n">م</th>
-              <th class="col-name">اسم الصنف</th>
-              <th class="col-qty">الكمية</th>
-              <th class="col-price">سعر الوحدة</th>
-              <th class="col-total">الإجمالي</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-
-        <div class="bottom">
-          <div class="notes">
-            <h3>ملاحظات</h3>
-            <div class="lines"></div>
-            <div class="lines"></div>
-            <div class="lines"></div>
-          </div>
-          <div class="totals">
-            <table>
-              <tr><td>إجمالي المبلغ</td><td>${sub.toFixed(2)}</td></tr>
-              <tr><td>خصم</td><td>${disc.toFixed(2)}</td></tr>
-              <tr class="grand"><td>صافي المبلغ</td><td>${tot.toFixed(2)}</td></tr>
-              <tr><td>المدفوع</td><td>${paid.toFixed(2)}</td></tr>
-              <tr><td>المتبقي</td><td>${Math.max(0, tot - paid).toFixed(2)}</td></tr>
-            </table>
-          </div>
-        </div>
-
-        <p class="thanks">— ${escapeHtml(footerText)} —</p>
-      </div>
-
-      <div class="footer">
-        <span>${escapeHtml(brandTitle)}</span>
-        <span dir="ltr">${escapeHtml(phone)}</span>
-      </div>
-      <div class="auth-strip">وثيقة إلكترونية — ${invNo} — العلامة المائية المكررة جزء من الحماية ضد التزوير</div>
-      <div class="bottom-wave"></div>
-    </div>
-  </div>
-  <script>window.onload=function(){window.print()}</script>
-</body>
-</html>`);
-    w.document.close();
+    const body = `
+<div class="center">
+  <div class="brand">${escapeHtml(centerName)}</div>
+  ${brandSubtitle ? `<div class="sub">${escapeHtml(brandSubtitle)}</div>` : ''}
+  ${address ? `<div class="sub">${escapeHtml(address)}</div>` : ''}
+  ${phone ? `<div class="sub" dir="ltr">${escapeHtml(phone)}</div>` : ''}
+  ${tags ? `<div class="tags">${tags}</div>` : ''}
+</div>
+<hr class="hr"/>
+<div class="title">${escapeHtml(invoiceTitle)}</div>
+<div class="center"><span class="badge">${status}</span></div>
+<div class="meta">رقم: <strong dir="ltr">${invNo}</strong></div>
+<div class="meta">التاريخ: <span dir="ltr">${escapeHtml(dateStr)}</span></div>
+<div class="meta">العميل: <strong>${customer}</strong></div>
+<hr class="hr"/>
+<table>
+  <thead>
+    <tr>
+      <th class="num">#</th>
+      <th>الصنف</th>
+      <th class="qty">كمية</th>
+      <th class="money">سعر</th>
+      <th class="money">إجمالي</th>
+    </tr>
+  </thead>
+  <tbody>${rows || '<tr><td colspan="5" class="center">—</td></tr>'}</tbody>
+</table>
+<hr class="hr"/>
+<div class="totals">
+  <div class="row"><span>المجموع</span><span dir="ltr">${sub.toFixed(2)}</span></div>
+  ${disc > 0 ? `<div class="row"><span>الخصم</span><span dir="ltr">${disc.toFixed(2)}</span></div>` : ''}
+  <div class="row grand"><span>الصافي</span><span dir="ltr">${tot.toFixed(2)}</span></div>
+  <div class="row"><span>المدفوع</span><span dir="ltr">${paid.toFixed(2)}</span></div>
+  ${remain > 0.001 ? `<div class="row"><span>المتبقي</span><span dir="ltr">${remain.toFixed(2)}</span></div>` : ''}
+</div>
+<p class="foot">${escapeHtml(footerText)}</p>
+<p class="foot" style="font-size:9px">80mm · ${invNo}</p>
+`;
+    printThermalHtml(thermalDoc(`فاتورة ${sale.invoiceNumber}`, body), `فاتورة ${sale.invoiceNumber}`);
   }
 
   async function saveSale(andPrint = false, asCredit = false) {
