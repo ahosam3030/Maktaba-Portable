@@ -143,7 +143,7 @@ export class AssetsController {
       organizationId: user.organizationId,
       userId: user.userId,
       action: 'ASSET_CREATE',
-      entityType: 'Asset',
+      entity: 'Asset',
       entityId: asset.id,
       meta: { name, cost, quantity, postToCash },
     });
@@ -206,7 +206,7 @@ export class AssetsController {
       organizationId: user.organizationId,
       userId: user.userId,
       action: 'ASSET_UPDATE',
-      entityType: 'Asset',
+      entity: 'Asset',
       entityId: id,
       meta: body,
     });
@@ -224,7 +224,7 @@ export class AssetsController {
       organizationId: user.organizationId,
       userId: user.userId,
       action: 'ASSET_DELETE',
-      entityType: 'Asset',
+      entity: 'Asset',
       entityId: id,
       meta: { name: existing.name },
     });
