@@ -17,7 +17,6 @@ declare global {
     };
   }
 }
-}
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
@@ -278,31 +277,41 @@ export function Labels() {
   }
 
   function openLabelPreview(images: string[], wMm: number, hMm: number) {
+    const previewW = Math.max(220, Math.round(wMm * 5));
     const pages = images
-      .map((src, i) => `<div class="page"><img src="${src}" alt="label-${i + 1}"/></div>`)
+      .map(
+        (src, i) =>
+          `<div class="page">
+  <img src="${src}" alt="label-${i + 1}" width="${previewW}"/>
+  <div class="dl"><a download="maktaba-label-${i + 1}.png" href="${src}">تحميل الملصق ${i + 1} كصورة PNG</a></div>
+</div>`,
+      )
       .join('\n');
-    const w = window.open('', '_blank', 'width=420,height=560');
+    const w = window.open('', '_blank', 'width=560,height=740');
     if (!w) {
-      setNotice('اسمح بالنوافذ المنبثقة للطباعة.');
+      setNotice('اسمح بالنوافذ المنبثقة للمعاينة.');
       return;
     }
     w.document.write(`<!doctype html>
-<html><head><meta charset="utf-8"/><title>ملصقات ${wMm}x${hMm}</title>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"/>
+<title>معاينة ملصقات ${wMm}×${hMm}</title>
 <style>
-  @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
-  * { margin: 0; padding: 0; }
-  html, body { background: #fff; }
-  .page { width: ${wMm}mm; height: ${hMm}mm; page-break-after: always; }
-  .page:last-child { page-break-after: auto; }
-  img { width: ${wMm}mm; height: ${hMm}mm; display: block; }
-  .bar { font-family: Tahoma,sans-serif; font-size: 12px; padding: 8px; }
-  @media print { .bar { display: none !important; } }
+  body { font-family: Tahoma, Arial, sans-serif; margin: 0; padding: 14px; background: #eef2f7; color: #111; }
+  h1 { font-size: 17px; margin: 0 0 10px; }
+  .hint { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 14px; font-size: 13px; line-height: 1.55; }
+  .page { background: #fff; border: 1px dashed #94a3b8; margin: 0 auto 18px; padding: 10px; width: fit-content; text-align: center; }
+  .page img { image-rendering: pixelated; border: 1px solid #000; background: #fff; display: block; margin: 0 auto; }
+  .dl { margin-top: 8px; font-size: 13px; }
+  .dl a { color: #0f766e; font-weight: 700; }
+  button { padding: 8px 14px; cursor: pointer; margin-top: 6px; }
 </style></head><body>
-<div class="bar">معاينة — اختَر XP-Q371U ومقاس ${wMm}x${hMm} — عطّل Fit to page</div>
+<h1>معاينة ملصقات ${wMm}×${hMm} مم</h1>
+<div class="hint">
+  <b>الطابعة تطلع ورق أبيض؟</b> درايفر Seagull أحيانًا لا يطبع من المتصفح.<br/>
+  <b>الحل الأضمن:</b> اضغط «تحميل الملصق كصورة PNG» → افتح الملف في <b>الرسام</b> → ملف → طباعة → XP-Q371U → مقاس 38×25 → بدون Fit.
+</div>
+<button type="button" onclick="window.print()">طباعة من هذه النافذة</button>
 ${pages}
-<script>
-setTimeout(function(){ try{ window.print(); }catch(e){} }, 400);
-<\/script>
 </body></html>`);
     w.document.close();
   }
