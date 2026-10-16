@@ -1,4 +1,4 @@
-import { printThermalHtml, thermalDoc } from '../data/thermalPrint';
+import { printThermalHtml, thermalDoc, money2, totRow } from '../data/thermalPrint';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest, getToken } from '../data/api';
 import { ScanModeOverlay } from './ScanModeOverlay';
@@ -517,16 +517,17 @@ export function Purchases() {
   }
 
   function printInvoice(invoice: Invoice) {
-    const rows = (invoice.items || [])
-      .map(
-        (l, i) => `<tr>
-        <td class="num">${i + 1}</td>
-        <td>${escapeHtml(l.productName)}</td>
-        <td class="qty">${num(l.quantity)}</td>
-        <td class="money">${money(num(l.unitCost))}</td>
-        <td class="money">${money(num(l.lineTotal))}</td>
-      </tr>`,
-      )
+    const items = invoice.items || [];
+    const itemBlocks = items
+      .map((l, i) => {
+        const q = num(l.quantity);
+        const cost = num(l.unitCost);
+        const line = num(l.lineTotal) || q * cost;
+        return `<div class="item">
+  <div class="nm">${i + 1}) ${escapeHtml(l.productName)}</div>
+  <div class="ln">${q} x ${money2(cost)} = ${money2(line)}</div>
+</div>`;
+      })
       .join('');
     const body = `
 <div class="center"><div class="brand">فاتورة وارد</div></div>
@@ -535,18 +536,15 @@ export function Purchases() {
 <div class="meta">التاريخ: <span dir="ltr">${escapeHtml(String(invoice.invoiceDate).slice(0, 10))}</span></div>
 <div class="meta">المورد: <strong>${escapeHtml(invoice.supplier?.name || '')}</strong></div>
 <hr class="hr"/>
-<table>
-  <thead><tr><th class="num">#</th><th>الصنف</th><th class="qty">كمية</th><th class="money">تكلفة</th><th class="money">إجمالي</th></tr></thead>
-  <tbody>${rows}</tbody>
-</table>
+${itemBlocks || '<div class="center">—</div>'}
 <hr class="hr"/>
-<div class="totals">
-  <div class="row"><span>قبل الخصم</span><span dir="ltr">${money(num(invoice.subtotal))}</span></div>
-  <div class="row"><span>الخصم</span><span dir="ltr">${money(num(invoice.discount))}</span></div>
-  <div class="row grand"><span>الإجمالي</span><span dir="ltr">${money(num(invoice.total))}</span></div>
-  <div class="row"><span>المدفوع</span><span dir="ltr">${money(num(invoice.paidAmount))}</span></div>
-</div>
-<p class="foot">80mm</p>`;
+<table class="tot-table">
+  ${totRow('قبل الخصم', num(invoice.subtotal))}
+  ${totRow('الخصم', num(invoice.discount))}
+  ${totRow('الإجمالي', num(invoice.total), true)}
+  ${totRow('المدفوع', num(invoice.paidAmount))}
+</table>
+`;
     printThermalHtml(thermalDoc(`وارد ${invoice.invoiceNumber}`, body), `وارد ${invoice.invoiceNumber}`);
   }
 

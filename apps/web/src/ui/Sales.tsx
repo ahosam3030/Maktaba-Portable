@@ -3,7 +3,7 @@ import { apiRequest } from '../data/api';
 import { ScanModeOverlay } from './ScanModeOverlay';
 import { loadSaleUnits } from '../data/units';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
-import { printThermalHtml, thermalDoc } from '../data/thermalPrint';
+import { printThermalHtml, thermalDoc, money2, totRow } from '../data/thermalPrint';
 import { IconReceipt, IconWallet, IconRefresh, IconChart, IconCart } from './Icons';
 import { noticeClass, noticeKind } from './notice';
 
@@ -353,21 +353,22 @@ export function Sales() {
     const invoiceTitle = cfg.invoiceTitle || 'فاتورة مبيعات';
     const footerText = cfg.footerText || 'شكرًا لثقتكم بنا';
     const items = sale.items || [];
-    const rows = items
-      .map(
-        (l, i) => `<tr>
-        <td class="num">${i + 1}</td>
-        <td class="name">${escapeHtml(l.productName)}</td>
-        <td class="qty">${qty(Number(l.quantity))}</td>
-        <td class="money">${Number(l.unitPrice).toFixed(2)}</td>
-        <td class="money">${Number(l.lineTotal).toFixed(2)}</td>
-      </tr>`,
-      )
+    const itemBlocks = items
+      .map((l, i) => {
+        const q = Number(l.quantity) || 0;
+        const price = Number(l.unitPrice) || 0;
+        const line = Number(l.lineTotal);
+        const total = Number.isFinite(line) && line > 0 ? line : q * price;
+        return `<div class="item">
+  <div class="nm">${i + 1}) ${escapeHtml(l.productName)}</div>
+  <div class="ln">${q} x ${money2(price)} = ${money2(total)}</div>
+</div>`;
+      })
       .join('');
-    const paid = Number(sale.paidAmount);
-    const tot = Number(sale.total);
-    const sub = Number(sale.subtotal);
-    const disc = Number(sale.discount);
+    const paid = Number(sale.paidAmount) || 0;
+    const tot = Number(sale.total) || 0;
+    const sub = Number(sale.subtotal) || tot;
+    const disc = Number(sale.discount) || 0;
     const remain = Math.max(0, tot - paid);
     const dateStr = new Date(sale.saleDate).toLocaleString('en-GB');
     const invNo = escapeHtml(sale.invoiceNumber);
@@ -387,32 +388,21 @@ export function Sales() {
 <hr class="hr"/>
 <div class="title">${escapeHtml(invoiceTitle)}</div>
 <div class="center"><span class="badge">${status}</span></div>
-<div class="meta">رقم: <strong dir="ltr">${invNo}</strong></div>
+<div class="meta">رقم الفاتورة: <strong dir="ltr">${invNo}</strong></div>
 <div class="meta">التاريخ: <span dir="ltr">${escapeHtml(dateStr)}</span></div>
 <div class="meta">العميل: <strong>${customer}</strong></div>
 <hr class="hr"/>
-<table>
-  <thead>
-    <tr>
-      <th class="num">#</th>
-      <th class="name">الصنف</th>
-      <th class="qty">ك</th>
-      <th class="money">سعر</th>
-      <th class="money">ج</th>
-    </tr>
-  </thead>
-  <tbody>${rows || '<tr><td colspan="5" class="center">لا توجد بنود</td></tr>'}</tbody>
-</table>
+${itemBlocks || '<div class="center">لا توجد بنود</div>'}
 <hr class="hr"/>
-<div class="totals">
-  <div class="row"><span>المجموع</span><span dir="ltr">${sub.toFixed(2)}</span></div>
-  ${disc > 0 ? `<div class="row"><span>الخصم</span><span dir="ltr">${disc.toFixed(2)}</span></div>` : ''}
-  <div class="row grand"><span>الصافي</span><span dir="ltr">${tot.toFixed(2)}</span></div>
-  <div class="row"><span>المدفوع</span><span dir="ltr">${paid.toFixed(2)}</span></div>
-  ${remain > 0.001 ? `<div class="row"><span>المتبقي</span><span dir="ltr">${remain.toFixed(2)}</span></div>` : ''}
-</div>
+<table class="tot-table">
+  ${totRow('المجموع', sub)}
+  ${disc > 0 ? totRow('الخصم', disc) : ''}
+  ${totRow('الصافي', tot, true)}
+  ${totRow('المدفوع', paid)}
+  ${remain > 0.001 ? totRow('المتبقي', remain) : ''}
+</table>
 <p class="foot">${escapeHtml(footerText)}</p>
-<p class="foot" style="font-size:9px">80mm · ${invNo}</p>
+<p class="foot">فاتورة ${invNo}</p>
 `;
     printThermalHtml(thermalDoc(`فاتورة ${sale.invoiceNumber}`, body), `فاتورة ${sale.invoiceNumber}`);
   }

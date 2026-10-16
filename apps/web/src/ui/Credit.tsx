@@ -1,4 +1,4 @@
-import { printThermalHtml, thermalDoc } from '../data/thermalPrint';
+import { printThermalHtml, thermalDoc, money2, totRow } from '../data/thermalPrint';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
@@ -140,19 +140,21 @@ function printHtml(html: string) {
 function buildInvoiceHtml(sale: SaleRow, customerName: string, customerPhone?: string | null) {
   const inv = loadInvoiceSettings();
   const items = sale.items || [];
-  const rows = items
-    .map(
-      (l, i) => `<tr>
-      <td class="num">${i + 1}</td>
-      <td class="name">${escapeHtml(l.productName || '')}${l.unit ? ` <small>(${escapeHtml(String(l.unit))})</small>` : ''}</td>
-      <td class="qty">${Number(l.quantity)}</td>
-      <td class="money">${Number(l.unitPrice).toFixed(2)}</td>
-      <td class="money">${Number(l.lineTotal).toFixed(2)}</td>
-    </tr>`,
-    )
+  const itemBlocks = items
+    .map((l, i) => {
+      const q = Number(l.quantity) || 0;
+      const price = Number(l.unitPrice) || 0;
+      const line = Number(l.lineTotal);
+      const total = Number.isFinite(line) && line > 0 ? line : q * price;
+      const unit = l.unit ? ` (${String(l.unit)})` : '';
+      return `<div class="item">
+  <div class="nm">${i + 1}) ${escapeHtml(l.productName || '')}${escapeHtml(unit)}</div>
+  <div class="ln">${q} x ${money2(price)} = ${money2(total)}</div>
+</div>`;
+    })
     .join('');
-  const tot = Number(sale.total);
-  const paid = Number(sale.paidAmount);
+  const tot = Number(sale.total) || 0;
+  const paid = Number(sale.paidAmount) || 0;
   const remain = Number(sale.remaining ?? tot - paid);
   const dateStr = new Date(sale.saleDate).toLocaleString('en-GB');
   const brand = inv.watermarkText || inv.brandTitle || 'المركز';
@@ -173,18 +175,14 @@ function buildInvoiceHtml(sale: SaleRow, customerName: string, customerPhone?: s
 <div class="meta">العميل: <strong>${escapeHtml(customerName)}</strong></div>
 ${customerPhone ? `<div class="meta">هاتف: <span dir="ltr">${escapeHtml(customerPhone)}</span></div>` : ''}
 <hr class="hr"/>
-<table>
-  <thead><tr><th class="num">#</th><th class="name">الصنف</th><th class="qty">ك</th><th class="money">سعر</th><th class="money">ج</th></tr></thead>
-  <tbody>${rows || '<tr><td colspan="5" class="center">لا توجد بنود — افتح تفاصيل الفاتورة ثم اطبع</td></tr>'}</tbody>
-</table>
+${itemBlocks || '<div class="center">لا توجد بنود — افتح التفاصيل ثم اطبع</div>'}
 <hr class="hr"/>
-<div class="totals">
-  <div class="row grand"><span>إجمالي الفاتورة</span><span>${tot.toFixed(2)}</span></div>
-  <div class="row"><span>المدفوع</span><span>${paid.toFixed(2)}</span></div>
-  <div class="row"><span>المتبقي على الفاتورة</span><strong>${remain.toFixed(2)}</strong></div>
-</div>
+<table class="tot-table">
+  ${totRow('إجمالي الفاتورة', tot, true)}
+  ${totRow('المدفوع', paid)}
+  ${totRow('المتبقي', remain)}
+</table>
 <p class="foot">${escapeHtml(inv.footerText || 'شكراً لثقتكم')}</p>
-<p class="foot">80mm</p>
 `;
   return thermalDoc(`فاتورة ${sale.invoiceNumber}`, body);
 }
@@ -217,7 +215,7 @@ function buildPaymentReceiptHtml(
 <hr class="hr"/>
 <div class="title">إيصال تحصيل آجل</div>
 <div class="center"><span class="badge">تحصيل</span></div>
-<div class="amt-big">${amount.toFixed(2)}</div>
+<div class="amt-big">${money2(amount)}</div>
 <div class="box">
   <div class="meta">العميل: <strong>${escapeHtml(customerName)}</strong></div>
   ${customerPhone ? `<div class="meta">هاتف: <span dir="ltr">${escapeHtml(customerPhone)}</span></div>` : ''}
@@ -226,13 +224,13 @@ function buildPaymentReceiptHtml(
   ${invoiceHint ? `<div class="meta">على فاتورة: <span dir="ltr">${escapeHtml(invoiceHint)}</span></div>` : ''}
   ${payment.notes ? `<div class="meta">ملاحظات: ${escapeHtml(payment.notes)}</div>` : ''}
 </div>
-<div class="totals">
-  <div class="row"><span>المبلغ المحصّل</span><strong>${amount.toFixed(2)}</strong></div>
-  <div class="row"><span>الرصيد قبل التحصيل</span><span>${balanceBefore.toFixed(2)}</span></div>
-  <div class="row grand"><span>المتبقي بعد التحصيل</span><strong>${balanceAfter.toFixed(2)}</strong></div>
-</div>
+<table class="tot-table">
+  ${totRow('المبلغ المحصّل', amount, true)}
+  ${totRow('الرصيد قبل التحصيل', balanceBefore)}
+  ${totRow('المتبقي بعد التحصيل', balanceAfter)}
+</table>
 <p class="foot">${escapeHtml(inv.footerText || 'شكراً لثقتكم')}</p>
-<p class="foot">إيصال تحصيل · 80mm</p>
+<p class="foot">إيصال تحصيل</p>
 `;
   return thermalDoc('إيصال تحصيل', body);
 }

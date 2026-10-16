@@ -1,106 +1,93 @@
 /**
  * طباعة حرارية 80 مم — Xprinter XP-Q807K
- * المنطقة القابلة للطباعة ≈ 72 مم؛ الهوامش الجانبية ضيقة لتفادي القص.
+ * الأرقام تُعرض داخل عرض آمن حتى لا تُقص من حافة الرول.
  */
 export const THERMAL_WIDTH_MM = 80;
-export const THERMAL_CONTENT_MM = 72;
+
+export function money2(n: number): string {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '0.00';
+  return v.toFixed(2);
+}
 
 export function thermal80Css(extra = ''): string {
   return `
 @page { size: 80mm auto; margin: 0; }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
-  margin: 0;
-  padding: 0;
   width: 80mm;
   max-width: 80mm;
+  margin: 0;
+  padding: 0;
 }
 body {
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: 12px;
+  line-height: 1.35;
   color: #000;
   background: #fff;
-  width: ${THERMAL_CONTENT_MM}mm;
-  max-width: ${THERMAL_CONTENT_MM}mm;
-  margin: 0 auto;
-  padding: 2mm 0 5mm;
+  padding: 3mm 4mm 6mm;
   direction: rtl;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
-  overflow: hidden;
 }
 .center { text-align: center; }
-.brand { font-size: 14px; font-weight: 800; margin-bottom: 2px; word-wrap: break-word; }
-.sub { font-size: 10px; color: #222; margin-bottom: 1px; word-wrap: break-word; }
-.tags { font-size: 9px; color: #444; margin: 3px 0; word-wrap: break-word; }
-.hr { border: none; border-top: 1px dashed #000; margin: 5px 0; }
-.title { font-size: 12px; font-weight: 700; text-align: center; margin: 3px 0; }
-.meta { font-size: 10px; margin: 2px 0; word-wrap: break-word; }
-.meta strong { font-weight: 700; }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 4px 0;
-  font-size: 10px;
-  table-layout: fixed;
-}
-th, td {
-  padding: 2px 1px;
-  vertical-align: top;
-  text-align: right;
-  word-wrap: break-word;
-  overflow-wrap: anywhere;
-}
-th {
-  border-bottom: 1px solid #000;
-  font-weight: 700;
-  font-size: 9px;
-}
-td.num, th.num { text-align: center; width: 12%; }
-td.name, th.name { width: 40%; }
-td.qty, th.qty { text-align: center; width: 14%; }
-td.money, th.money { text-align: left; direction: ltr; width: 17%; white-space: nowrap; }
-.totals { margin-top: 3px; font-size: 11px; }
-.totals .row {
-  display: flex;
-  justify-content: space-between;
-  gap: 4px;
-  padding: 2px 0;
-}
-.totals .row span:last-child,
-.totals .row strong:last-child {
-  direction: ltr;
-  text-align: left;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.totals .grand {
-  font-size: 12px;
-  font-weight: 800;
-  border-top: 1px dashed #000;
-  margin-top: 3px;
-  padding-top: 3px;
-}
+.brand { font-size: 15px; font-weight: 800; margin-bottom: 2px; }
+.sub { font-size: 10px; color: #222; margin-bottom: 2px; }
+.tags { font-size: 9px; color: #444; margin: 3px 0; }
+.hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+.title { font-size: 13px; font-weight: 700; text-align: center; margin: 4px 0; }
+.meta { font-size: 11px; margin: 3px 0; }
 .badge {
   display: inline-block;
   border: 1px solid #000;
-  padding: 1px 6px;
-  font-size: 9px;
+  padding: 2px 8px;
+  font-size: 10px;
   font-weight: 700;
-  margin: 3px 0;
-}
-.foot { text-align: center; font-size: 9px; margin-top: 6px; color: #222; word-wrap: break-word; }
-.amt-big { font-size: 18px; font-weight: 800; text-align: center; margin: 6px 0; direction: ltr; }
-.box {
-  border: 1px solid #000;
-  padding: 4px;
   margin: 4px 0;
 }
+.item {
+  margin: 6px 0;
+  padding-bottom: 4px;
+  border-bottom: 1px dotted #999;
+  font-size: 11px;
+}
+.item .nm { font-weight: 700; margin-bottom: 2px; }
+.item .ln {
+  direction: ltr;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+.tot-table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 12px; }
+.tot-table td { padding: 3px 0; vertical-align: middle; }
+.tot-table td.k { text-align: right; }
+.tot-table td.v {
+  text-align: left;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+  width: 40%;
+}
+.tot-table tr.grand td {
+  font-size: 13px;
+  font-weight: 800;
+  border-top: 1px dashed #000;
+  padding-top: 5px;
+}
+.amt-big {
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+  margin: 8px 0;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+}
+.box { border: 1px solid #000; padding: 5px; margin: 6px 0; }
+.foot { text-align: center; font-size: 10px; margin-top: 8px; color: #333; }
 @media print {
-  html, body { width: 80mm; }
-  body { width: ${THERMAL_CONTENT_MM}mm; max-width: ${THERMAL_CONTENT_MM}mm; padding: 1.5mm 0 4mm; }
-  .no-print { display: none !important; }
+  body { padding: 2mm 3mm 5mm; }
 }
 ${extra}
 `.trim();
@@ -166,4 +153,10 @@ export function thermalDoc(title: string, bodyHtml: string, extraCss = ''): stri
 ${bodyHtml}
 </body>
 </html>`;
+}
+
+/** صف مجاميع: تسمية + رقم كامل بدون قص */
+export function totRow(label: string, value: number | string, grand = false): string {
+  const v = typeof value === 'number' ? money2(value) : escapePrintHtml(String(value));
+  return `<tr class="${grand ? 'grand' : ''}"><td class="k">${escapePrintHtml(label)}</td><td class="v">${v}</td></tr>`;
 }
