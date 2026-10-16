@@ -882,6 +882,7 @@ async function boot() {
     app.quit();
     return;
   }
+  registerLabelPrintIpc();
   createWindow();
 
   // تحديث تلقائي (يتطلب نشر Releases على GitHub + بناء موقع)
