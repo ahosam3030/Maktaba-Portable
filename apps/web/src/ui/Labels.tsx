@@ -21,7 +21,7 @@ function escapeHtml(s: string) {
 }
 
 /** مقاسات ملصق شائعة (مم) — للطباعة الحرارية أو الورق */
-type LabelSizeId = 'a4-auto' | '30x10' | '40x20' | '40x30' | '50x25' | '50x30' | '50x40' | '60x40' | '70x50' | '80x50' | 'custom';
+type LabelSizeId = 'a4-auto' | '30x10' | '38x25' | '40x20' | '40x30' | '50x25' | '50x30' | '50x40' | '60x40' | '70x50' | '80x50' | 'custom';
 
 type LabelSize = {
   id: LabelSizeId;
@@ -35,7 +35,8 @@ type LabelSize = {
 
 const LABEL_SIZES: LabelSize[] = [
   { id: 'a4-auto', label: 'ورقة A4 (شبكة)', widthMm: 0, heightMm: 30, defaultCols: 3, pageMode: 'sheet' },
-  { id: '30x10', label: '30×10 مم (3×1 سم) — رولك', widthMm: 30, heightMm: 10, defaultCols: 1, pageMode: 'roll' },
+  { id: '30x10', label: '30×10 مم (3×1 سم) — رول', widthMm: 30, heightMm: 10, defaultCols: 1, pageMode: 'roll' },
+  { id: '38x25', label: '38×25 مم — رولك (الافتراضي)', widthMm: 38, heightMm: 25, defaultCols: 1, pageMode: 'roll' },
   { id: '40x20', label: '40×20 مم — رول', widthMm: 40, heightMm: 20, defaultCols: 1, pageMode: 'roll' },
   { id: '40x30', label: '40×30 مم — رول', widthMm: 40, heightMm: 30, defaultCols: 1, pageMode: 'roll' },
   { id: '50x25', label: '50×25 مم — رول', widthMm: 50, heightMm: 25, defaultCols: 1, pageMode: 'roll' },
@@ -52,7 +53,7 @@ const SIZE_STORAGE_KEY = 'maktaba.labelSize.v1';
 function loadSavedSize(): { id: LabelSizeId; w: number; h: number; cols: number } {
   try {
     const raw = localStorage.getItem(SIZE_STORAGE_KEY);
-    if (!raw) return { id: '30x10', w: 30, h: 10, cols: 1 };
+    if (!raw) return { id: '38x25', w: 38, h: 25, cols: 1 };
     const j = JSON.parse(raw) as { id?: LabelSizeId; w?: number; h?: number; cols?: number };
     const preset = LABEL_SIZES.find((s) => s.id === j.id) || LABEL_SIZES[2];
     return {
@@ -62,7 +63,7 @@ function loadSavedSize(): { id: LabelSizeId; w: number; h: number; cols: number 
       cols: Number(j.cols) || preset.defaultCols,
     };
   } catch {
-    return { id: '30x10', w: 30, h: 10, cols: 1 };
+    return { id: '38x25', w: 38, h: 25, cols: 1 };
   }
 }
 
@@ -332,7 +333,7 @@ export function Labels() {
         <div>
           <h2>ملصقات الباركود</h2>
           <p className="muted-sm">
-            للرول الحراري: اختر مقاس ملصقك (مثل 50×30) ثم اطبع. في الطباعة عطّل «ملاءمة للصفحة» وحدد مقاس الورق = الملصق.
+            للرول الحراري: الافتراضي 38×25 مم — اختر المقاس ثم اطبع. في الطباعة عطّل «ملاءمة للصفحة» وحدد مقاس الورق = الملصق.
             {products.length > 0 && (
               <>
                 {' '}
