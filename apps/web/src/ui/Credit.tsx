@@ -185,7 +185,7 @@ ${customerPhone ? `<div class="meta">هاتف: <span dir="ltr">${escapeHtml(cust
   return thermalDoc(`فاتورة ${sale.invoiceNumber}`, body);
 }
 
-function printCreditInvoicefunction printCreditInvoice(sale: SaleRow, customerName: string, customerPhone?: string | null) {
+function printCreditInvoice(sale: SaleRow, customerName: string, customerPhone?: string | null) {
   printThermalHtml(buildInvoiceHtml(sale, customerName, customerPhone), `فاتورة ${sale.invoiceNumber}`);
 }
 
@@ -222,7 +222,7 @@ ${payment.notes ? `<div class="meta">ملاحظة: ${escapeHtml(payment.notes)}<
   return thermalDoc('إيصال تحصيل', body);
 }
 
-function printPaymentReceiptfunction printPaymentReceipt(
+function printPaymentReceipt(
   payment: PaymentRow,
   customerName: string,
   customerPhone: string | null | undefined,
