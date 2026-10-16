@@ -1,5 +1,5 @@
 /**
- * CODE128B → SVG مضمّن للطباعة الحرارية (أوفلاين، بدون img/data-url)
+ * CODE128B — SVG أو رسم على Canvas للطباعة الحرارية أوفلاين
  */
 
 const PATTERNS: string[] = [
@@ -24,7 +24,7 @@ function codeValue(ch: number): number {
   return 0;
 }
 
-function encodeBinary(text: string): string {
+export function encodeCode128Binary(text: string): string {
   const raw = String(text || '').trim();
   if (!raw) return '';
   const codes: number[] = [START_B];
@@ -36,29 +36,47 @@ function encodeBinary(text: string): string {
   }
   codes.push(checksum % 103);
   codes.push(STOP);
-
   let binary = '';
   for (const idx of codes) {
     if (idx === STOP) binary += '1100011101011';
     else binary += PATTERNS[idx] || PATTERNS[0];
   }
-  binary += '11';
-  return binary;
+  return binary + '11';
 }
 
-/** SVG أسود/أبيض يطبع بثبات على الطابعات الحرارية */
+export function drawCode128OnCanvas(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  const binary = encodeCode128Binary(text);
+  if (!binary) return;
+  const quiet = Math.max(4, Math.floor(width * 0.05));
+  const usable = Math.max(1, width - quiet * 2);
+  const mw = usable / binary.length;
+  ctx.fillStyle = '#000000';
+  let px = x + quiet;
+  for (let i = 0; i < binary.length; i++) {
+    if (binary[i] === '1') {
+      ctx.fillRect(Math.floor(px), y, Math.max(1, Math.ceil(mw)), height);
+    }
+    px += mw;
+  }
+}
+
 export function code128Svg(
   text: string,
   opts?: { height?: number; moduleWidth?: number },
 ): string {
-  const binary = encodeBinary(text);
+  const binary = encodeCode128Binary(text);
   if (!binary) return '';
-
   const height = Math.max(16, opts?.height ?? 36);
   const mw = Math.max(1, opts?.moduleWidth ?? 2);
   const quiet = mw * 10;
   const width = quiet * 2 + binary.length * mw;
-
   let x = quiet;
   const rects: string[] = [];
   for (let i = 0; i < binary.length; i++) {
@@ -67,34 +85,71 @@ export function code128Svg(
     }
     x += mw;
   }
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges" style="width:100%;height:${height}px;max-width:100%;display:block;margin:0 auto;background:#fff">${rects.join('')}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges">${rects.join('')}</svg>`;
 }
 
-/** توافق قديم */
-export function code128DataUrl(
-  text: string,
-  opts?: { height?: number; moduleWidth?: number; margin?: number },
-): string {
-  const binary = encodeBinary(text);
-  if (!binary || typeof document === 'undefined') return '';
-  const height = Math.max(12, opts?.height ?? 40);
-  const moduleWidth = Math.max(1, opts?.moduleWidth ?? 2);
-  const margin = Math.max(0, opts?.margin ?? 4);
-  const width = margin * 2 + binary.length * moduleWidth;
+/** يرسم ملصق كامل كصورة PNG بأبعاد الطابعة (203 DPI) */
+export function renderLabelPng(opts: {
+  widthMm: number;
+  heightMm: number;
+  name: string;
+  price: number;
+  barcode: string;
+  store?: string;
+  showName?: boolean;
+  showPrice?: boolean;
+  showCode?: boolean;
+  dpi?: number;
+}): string {
+  const dpi = opts.dpi ?? 203;
+  const W = Math.max(80, Math.round((opts.widthMm / 25.4) * dpi));
+  const H = Math.max(50, Math.round((opts.heightMm / 25.4) * dpi));
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = W;
+  canvas.height = H;
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#000';
-  let x = margin;
-  for (let i = 0; i < binary.length; i++) {
-    if (binary[i] === '1') ctx.fillRect(x, 0, moduleWidth, height);
-    x += moduleWidth;
+
+  // خلفية بيضاء
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#000000';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  const pad = Math.max(4, Math.round(H * 0.04));
+  let y = pad;
+
+  if (opts.store) {
+    ctx.font = `bold ${Math.max(10, Math.round(H * 0.1))}px Arial`;
+    ctx.fillText(opts.store.slice(0, 28), W / 2, y, W - pad * 2);
+    y += Math.round(H * 0.12);
   }
+
+  if (opts.showName !== false && opts.name) {
+    ctx.font = `bold ${Math.max(12, Math.round(H * 0.14))}px Arial`;
+    const nm = opts.name.length > 22 ? opts.name.slice(0, 21) + '…' : opts.name;
+    ctx.fillText(nm, W / 2, y, W - pad * 2);
+    y += Math.round(H * 0.16);
+  }
+
+  if (opts.showPrice !== false) {
+    ctx.font = `bold ${Math.max(14, Math.round(H * 0.16))}px Arial`;
+    ctx.fillText(Number(opts.price || 0).toFixed(2), W / 2, y, W - pad * 2);
+    y += Math.round(H * 0.16);
+  }
+
+  // باركود
+  const bcH = Math.max(24, Math.round(H * 0.32));
+  const bcY = Math.min(y, H - bcH - Math.round(H * 0.14));
+  drawCode128OnCanvas(ctx, opts.barcode, pad, bcY, W - pad * 2, bcH);
+  y = bcY + bcH + 2;
+
+  if (opts.showCode !== false) {
+    ctx.font = `${Math.max(10, Math.round(H * 0.1))}px Arial`;
+    ctx.fillText(String(opts.barcode), W / 2, y, W - pad * 2);
+  }
+
   try {
     return canvas.toDataURL('image/png');
   } catch {

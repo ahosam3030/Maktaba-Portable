@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
 import { noticeClass, noticeKind } from './notice';
-import { code128Svg } from '../data/code128';
+import { renderLabelPng } from '../data/code128';
 
 type Product = {
   id: string;
@@ -193,128 +193,111 @@ export function Labels() {
       return;
     }
 
-    const store = storeName.trim();
-    const phoneLine = phone.trim();
-    const extra = extraLine.trim();
-
-    // مقاس الملصق بالمم (مثل 38×25)
     const wMm = Math.max(20, labelW || 38);
     const hMm = Math.max(12, labelH || 25);
-    const wIn = (wMm / 25.4).toFixed(3);
-    const hIn = (hMm / 25.4).toFixed(3);
+    const store = storeName.trim();
 
-    // ارتفاع الباركود ≈ 40% من الملصق
-    const bcH = Math.max(18, Math.min(48, Math.round(hMm * 1.6)));
-    const mod = wMm <= 40 ? 1 : 2;
-    const nameFs = hMm <= 20 ? 9 : hMm <= 25 ? 10 : 11;
-    const priceFs = hMm <= 20 ? 10 : 12;
-    const codeFs = 8;
+    const images: string[] = [];
+    for (const p of items) {
+      for (let c = 0; c < p.copies; c++) {
+        const png = renderLabelPng({
+          widthMm: wMm,
+          heightMm: hMm,
+          name: p.name || '',
+          price: Number(p.salePrice) || 0,
+          barcode: String(p.barcode),
+          store: showStoreName ? store : '',
+          showName,
+          showPrice,
+          showCode: showBarcodeText,
+          dpi: 203,
+        });
+        if (png) images.push(png);
+      }
+    }
 
-    const labelsHtml = items
-      .flatMap((p) =>
-        Array.from({ length: p.copies }, () => {
-          const price = Number(p.salePrice) || 0;
-          const code = String(p.barcode);
-          const name = (p.name || '').length > 18 ? (p.name || '').slice(0, 17) + '…' : p.name || '';
-          const svg = code128Svg(code, { height: bcH, moduleWidth: mod });
-          return `<div class="label">
-  ${showStoreName && store ? `<div class="store">${escapeHtml(store)}</div>` : ''}
-  ${showName ? `<div class="name">${escapeHtml(name)}</div>` : ''}
-  ${showPrice ? `<div class="price">${price.toFixed(2)}</div>` : ''}
-  <div class="bcwrap">${svg}</div>
-  <div class="code" dir="ltr">${escapeHtml(code)}</div>
-  ${showPhone && phoneLine ? `<div class="phone" dir="ltr">${escapeHtml(phoneLine)}</div>` : ''}
-  ${extra ? `<div class="extra">${escapeHtml(extra)}</div>` : ''}
-</div>`;
-        }),
+    if (images.length === 0) {
+      setNotice('تعذر رسم الملصقات.');
+      return;
+    }
+
+    // معاينة واضحة + طباعة صورة نقطية (أنسب لدرايفر Seagull/Xprinter)
+    const pages = images
+      .map(
+        (src, i) =>
+          `<div class="page"><img src="${src}" alt="label-${i + 1}"/></div>`,
       )
       .join('\n');
 
-    const w = window.open('', '_blank', 'width=480,height=640');
+    const w = window.open('', '_blank', 'width=520,height=700');
     if (!w) {
       setNotice('اسمح بالنوافذ المنبثقة للطباعة.');
       return;
     }
 
-    // XP-Q371U: المقاس بالبوصة يطابق إعداد Stock 38x25
     w.document.write(`<!doctype html>
-<html lang="ar" dir="rtl">
+<html>
 <head>
 <meta charset="utf-8"/>
-<title>ملصق ${wMm}x${hMm}mm</title>
+<title>ملصقات ${wMm}x${hMm}mm</title>
 <style>
-  @page {
-    size: ${wMm}mm ${hMm}mm;
-    margin: 0;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body {
-    width: ${wMm}mm;
-    height: auto;
-    margin: 0;
-    padding: 0;
-    background: #fff;
-    color: #000;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    color-adjust: exact !important;
-  }
-  .label {
+  @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  .page {
     width: ${wMm}mm;
     height: ${hMm}mm;
-    max-width: ${wMm}mm;
-    max-height: ${hMm}mm;
-    padding: 0.8mm 1.2mm;
-    overflow: hidden;
     page-break-after: always;
     page-break-inside: avoid;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    background: #fff;
-    color: #000;
-    font-family: Arial, Tahoma, sans-serif;
-  }
-  .label:last-child { page-break-after: auto; }
-  .store { font-size: 7px; font-weight: 700; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; }
-  .name { font-size: ${nameFs}px; font-weight: 800; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; color: #000; }
-  .price { font-size: ${priceFs}px; font-weight: 800; line-height: 1.1; color: #000; }
-  .bcwrap {
-    width: 100%;
-    max-height: ${Math.round(hMm * 0.45)}mm;
     overflow: hidden;
-    margin: 0.4mm 0;
-    text-align: center;
   }
-  .bcwrap svg { width: 100% !important; height: ${bcH}px !important; max-height: ${Math.round(hMm * 0.42)}mm; }
-  .code { font-size: ${codeFs}px; letter-spacing: 0.04em; direction: ltr; unicode-bidi: isolate; color: #000; margin-top: 0.3mm; }
-  .phone, .extra { font-size: 7px; color: #000; }
+  .page:last-child { page-break-after: auto; }
+  .page img {
+    width: ${wMm}mm;
+    height: ${hMm}mm;
+    display: block;
+    image-rendering: pixelated;
+  }
+  .hint {
+    font-family: Tahoma, Arial, sans-serif;
+    font-size: 13px;
+    padding: 12px;
+    color: #333;
+  }
   @media print {
+    .hint { display: none !important; }
     html, body { width: ${wMm}mm; }
-    .label { width: ${wMm}mm; height: ${hMm}mm; }
   }
 </style>
 </head>
 <body>
-${labelsHtml}
+<div class="hint no-print">معاينة الملصق — إذا ظهرت الصورة هنا والورق أبيض: من إعدادات XP-Q371U جرّب Orientation = Landscape، وعطّل Mirror. ثم Print.</div>
+${pages}
 <script>
 (function(){
-  function go(){ try { window.focus(); window.print(); } catch(e) {} }
-  if (document.readyState === 'complete') setTimeout(go, 250);
-  else window.onload = function(){ setTimeout(go, 250); };
+  function go(){
+    try { window.focus(); window.print(); } catch(e) {}
+  }
+  // انتظر تحميل الصور
+  var imgs = document.images;
+  var left = imgs.length;
+  if (!left) { setTimeout(go, 300); return; }
+  function done(){ left--; if (left <= 0) setTimeout(go, 200); }
+  for (var i = 0; i < imgs.length; i++) {
+    if (imgs[i].complete) done();
+    else { imgs[i].onload = done; imgs[i].onerror = done; }
+  }
 })();
 <\/script>
 </body>
 </html>`);
     w.document.close();
-
-    const totalCopies = items.reduce((s, i) => s + i.copies, 0);
     setNotice(
-      `جاهز: ${totalCopies} ملصق — ${wMm}×${hMm} مم (${wIn}×${hIn} in). ` +
-        'في الطباعة: اختَر Stock 38x25 + Portrait + عطّل Fit/Mirror. لو فاضي جرّب Orientation: Landscape.',
+      `تم تجهيز ${images.length} ملصق (${wMm}×${hMm} مم). تأكد أن المعاينة فيها صورة قبل الطباعة.`,
     );
+  }
+
+
   }
 
   return (
