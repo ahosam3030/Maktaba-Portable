@@ -3,7 +3,7 @@ import { apiRequest } from '../data/api';
 import { ScanModeOverlay } from './ScanModeOverlay';
 import { loadSaleUnits } from '../data/units';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
-import { printThermalHtml, thermalDoc, money2, totRow } from '../data/thermalPrint';
+import { printThermalHtml, thermalDoc, money2, moneyBlock, fieldBlock } from '../data/thermalPrint';
 import { IconReceipt, IconWallet, IconRefresh, IconChart, IconCart } from './Icons';
 import { noticeClass, noticeKind } from './notice';
 
@@ -347,21 +347,18 @@ export function Sales() {
   function printSale(sale: Sale) {
     const cfg = loadInvoiceSettings();
     const centerName = cfg.watermarkText || cfg.brandTitle || 'المركز';
-    const phone = cfg.phone || '';
-    const address = cfg.address || '';
-    const brandSubtitle = cfg.brandSubtitle || '';
-    const invoiceTitle = cfg.invoiceTitle || 'فاتورة مبيعات';
-    const footerText = cfg.footerText || 'شكرًا لثقتكم بنا';
     const items = sale.items || [];
     const itemBlocks = items
       .map((l, i) => {
         const q = Number(l.quantity) || 0;
         const price = Number(l.unitPrice) || 0;
-        const line = Number(l.lineTotal);
-        const total = Number.isFinite(line) && line > 0 ? line : q * price;
+        const lineRaw = Number(l.lineTotal);
+        const total = Number.isFinite(lineRaw) && lineRaw > 0 ? lineRaw : q * price;
         return `<div class="item">
-  <div class="nm">${i + 1}) ${escapeHtml(l.productName)}</div>
-  <div class="ln">${q} x ${money2(price)} = ${money2(total)}</div>
+  <div class="nm">${i + 1}) ${escapeHtml(l.productName || '')}</div>
+  <div class="det">الكمية: ${q}</div>
+  <div class="det">سعر الوحدة: ${money2(price)}</div>
+  <div class="sum">${money2(total)}</div>
 </div>`;
       })
       .join('');
@@ -371,8 +368,6 @@ export function Sales() {
     const disc = Number(sale.discount) || 0;
     const remain = Math.max(0, tot - paid);
     const dateStr = new Date(sale.saleDate).toLocaleString('en-GB');
-    const invNo = escapeHtml(sale.invoiceNumber);
-    const customer = escapeHtml(sale.customerName || 'عميل نقدي');
     const status =
       paid <= 0.001 && tot > 0.001 ? 'آجل' : remain > 0.001 ? 'جزئي' : 'نقدي';
     const tags = (cfg.serviceTags || []).map((x) => escapeHtml(x)).join(' · ');
@@ -380,29 +375,26 @@ export function Sales() {
     const body = `
 <div class="center">
   <div class="brand">${escapeHtml(centerName)}</div>
-  ${brandSubtitle ? `<div class="sub">${escapeHtml(brandSubtitle)}</div>` : ''}
-  ${address ? `<div class="sub">${escapeHtml(address)}</div>` : ''}
-  ${phone ? `<div class="sub" dir="ltr">${escapeHtml(phone)}</div>` : ''}
-  ${tags ? `<div class="tags">${tags}</div>` : ''}
+  ${cfg.brandSubtitle ? `<div class="sub">${escapeHtml(cfg.brandSubtitle)}</div>` : ''}
+  ${cfg.address ? `<div class="sub">${escapeHtml(cfg.address)}</div>` : ''}
+  ${cfg.phone ? `<div class="sub" dir="ltr">${escapeHtml(cfg.phone)}</div>` : ''}
+  ${tags ? `<div class="sub">${tags}</div>` : ''}
 </div>
 <hr class="hr"/>
-<div class="title">${escapeHtml(invoiceTitle)}</div>
+<div class="title">${escapeHtml(cfg.invoiceTitle || 'فاتورة مبيعات')}</div>
 <div class="center"><span class="badge">${status}</span></div>
-<div class="meta">رقم الفاتورة: <strong dir="ltr">${invNo}</strong></div>
+<div class="meta">رقم الفاتورة: <b dir="ltr">${escapeHtml(sale.invoiceNumber)}</b></div>
 <div class="meta">التاريخ: <span dir="ltr">${escapeHtml(dateStr)}</span></div>
-<div class="meta">العميل: <strong>${customer}</strong></div>
+<div class="meta">العميل: <b>${escapeHtml(sale.customerName || 'عميل نقدي')}</b></div>
 <hr class="hr"/>
 ${itemBlocks || '<div class="center">لا توجد بنود</div>'}
 <hr class="hr"/>
-<table class="tot-table">
-  ${totRow('المجموع', sub)}
-  ${disc > 0 ? totRow('الخصم', disc) : ''}
-  ${totRow('الصافي', tot, true)}
-  ${totRow('المدفوع', paid)}
-  ${remain > 0.001 ? totRow('المتبقي', remain) : ''}
-</table>
-<p class="foot">${escapeHtml(footerText)}</p>
-<p class="foot">فاتورة ${invNo}</p>
+${moneyBlock('المجموع', sub)}
+${disc > 0 ? moneyBlock('الخصم', disc) : ''}
+${moneyBlock('الصافي', tot, true)}
+${moneyBlock('المدفوع', paid)}
+${remain > 0.001 ? moneyBlock('المتبقي', remain) : ''}
+<p class="foot">${escapeHtml(cfg.footerText || 'شكراً لثقتكم بنا')}</p>
 `;
     printThermalHtml(thermalDoc(`فاتورة ${sale.invoiceNumber}`, body), `فاتورة ${sale.invoiceNumber}`);
   }

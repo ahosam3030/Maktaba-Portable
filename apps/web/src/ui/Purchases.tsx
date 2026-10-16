@@ -1,4 +1,4 @@
-import { printThermalHtml, thermalDoc, money2, totRow } from '../data/thermalPrint';
+import { printThermalHtml, thermalDoc, money2, moneyBlock } from '../data/thermalPrint';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest, getToken } from '../data/api';
 import { ScanModeOverlay } from './ScanModeOverlay';
@@ -525,25 +525,25 @@ export function Purchases() {
         const line = num(l.lineTotal) || q * cost;
         return `<div class="item">
   <div class="nm">${i + 1}) ${escapeHtml(l.productName)}</div>
-  <div class="ln">${q} x ${money2(cost)} = ${money2(line)}</div>
+  <div class="det">الكمية: ${q}</div>
+  <div class="det">التكلفة: ${money2(cost)}</div>
+  <div class="sum">${money2(line)}</div>
 </div>`;
       })
       .join('');
     const body = `
 <div class="center"><div class="brand">فاتورة وارد</div></div>
 <hr class="hr"/>
-<div class="meta">رقم: <strong dir="ltr">${escapeHtml(invoice.invoiceNumber)}</strong></div>
+<div class="meta">رقم: <b dir="ltr">${escapeHtml(invoice.invoiceNumber)}</b></div>
 <div class="meta">التاريخ: <span dir="ltr">${escapeHtml(String(invoice.invoiceDate).slice(0, 10))}</span></div>
-<div class="meta">المورد: <strong>${escapeHtml(invoice.supplier?.name || '')}</strong></div>
+<div class="meta">المورد: <b>${escapeHtml(invoice.supplier?.name || '')}</b></div>
 <hr class="hr"/>
 ${itemBlocks || '<div class="center">—</div>'}
 <hr class="hr"/>
-<table class="tot-table">
-  ${totRow('قبل الخصم', num(invoice.subtotal))}
-  ${totRow('الخصم', num(invoice.discount))}
-  ${totRow('الإجمالي', num(invoice.total), true)}
-  ${totRow('المدفوع', num(invoice.paidAmount))}
-</table>
+${moneyBlock('قبل الخصم', num(invoice.subtotal))}
+${moneyBlock('الخصم', num(invoice.discount))}
+${moneyBlock('الإجمالي', num(invoice.total), true)}
+${moneyBlock('المدفوع', num(invoice.paidAmount))}
 `;
     printThermalHtml(thermalDoc(`وارد ${invoice.invoiceNumber}`, body), `وارد ${invoice.invoiceNumber}`);
   }

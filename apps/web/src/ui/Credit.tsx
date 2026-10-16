@@ -1,4 +1,4 @@
-import { printThermalHtml, thermalDoc, money2, totRow } from '../data/thermalPrint';
+import { printThermalHtml, thermalDoc, money2, moneyBlock } from '../data/thermalPrint';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
@@ -144,12 +144,14 @@ function buildInvoiceHtml(sale: SaleRow, customerName: string, customerPhone?: s
     .map((l, i) => {
       const q = Number(l.quantity) || 0;
       const price = Number(l.unitPrice) || 0;
-      const line = Number(l.lineTotal);
-      const total = Number.isFinite(line) && line > 0 ? line : q * price;
+      const lineRaw = Number(l.lineTotal);
+      const total = Number.isFinite(lineRaw) && lineRaw > 0 ? lineRaw : q * price;
       const unit = l.unit ? ` (${String(l.unit)})` : '';
       return `<div class="item">
   <div class="nm">${i + 1}) ${escapeHtml(l.productName || '')}${escapeHtml(unit)}</div>
-  <div class="ln">${q} x ${money2(price)} = ${money2(total)}</div>
+  <div class="det">الكمية: ${q}</div>
+  <div class="det">سعر الوحدة: ${money2(price)}</div>
+  <div class="sum">${money2(total)}</div>
 </div>`;
     })
     .join('');
@@ -170,18 +172,16 @@ function buildInvoiceHtml(sale: SaleRow, customerName: string, customerPhone?: s
 <hr class="hr"/>
 <div class="title">فاتورة بيع — آجل</div>
 <div class="center"><span class="badge">${status}</span></div>
-<div class="meta">رقم الفاتورة: <strong dir="ltr">${escapeHtml(sale.invoiceNumber)}</strong></div>
+<div class="meta">رقم الفاتورة: <b dir="ltr">${escapeHtml(sale.invoiceNumber)}</b></div>
 <div class="meta">التاريخ: <span dir="ltr">${escapeHtml(dateStr)}</span></div>
-<div class="meta">العميل: <strong>${escapeHtml(customerName)}</strong></div>
+<div class="meta">العميل: <b>${escapeHtml(customerName)}</b></div>
 ${customerPhone ? `<div class="meta">هاتف: <span dir="ltr">${escapeHtml(customerPhone)}</span></div>` : ''}
 <hr class="hr"/>
-${itemBlocks || '<div class="center">لا توجد بنود — افتح التفاصيل ثم اطبع</div>'}
+${itemBlocks || '<div class="center">لا توجد بنود</div>'}
 <hr class="hr"/>
-<table class="tot-table">
-  ${totRow('إجمالي الفاتورة', tot, true)}
-  ${totRow('المدفوع', paid)}
-  ${totRow('المتبقي', remain)}
-</table>
+${moneyBlock('إجمالي الفاتورة', tot, true)}
+${moneyBlock('المدفوع', paid)}
+${moneyBlock('المتبقي', remain)}
 <p class="foot">${escapeHtml(inv.footerText || 'شكراً لثقتكم')}</p>
 `;
   return thermalDoc(`فاتورة ${sale.invoiceNumber}`, body);
@@ -217,20 +217,17 @@ function buildPaymentReceiptHtml(
 <div class="center"><span class="badge">تحصيل</span></div>
 <div class="amt-big">${money2(amount)}</div>
 <div class="box">
-  <div class="meta">العميل: <strong>${escapeHtml(customerName)}</strong></div>
+  <div class="meta">العميل: <b>${escapeHtml(customerName)}</b></div>
   ${customerPhone ? `<div class="meta">هاتف: <span dir="ltr">${escapeHtml(customerPhone)}</span></div>` : ''}
   <div class="meta">تاريخ السداد: <span dir="ltr">${escapeHtml(payAt)}</span></div>
-  <div class="meta">طريقة الدفع: <strong>${escapeHtml(method)}</strong></div>
+  <div class="meta">طريقة الدفع: <b>${escapeHtml(method)}</b></div>
   ${invoiceHint ? `<div class="meta">على فاتورة: <span dir="ltr">${escapeHtml(invoiceHint)}</span></div>` : ''}
   ${payment.notes ? `<div class="meta">ملاحظات: ${escapeHtml(payment.notes)}</div>` : ''}
 </div>
-<table class="tot-table">
-  ${totRow('المبلغ المحصّل', amount, true)}
-  ${totRow('الرصيد قبل التحصيل', balanceBefore)}
-  ${totRow('المتبقي بعد التحصيل', balanceAfter)}
-</table>
+${moneyBlock('المبلغ المحصّل', amount, true)}
+${moneyBlock('الرصيد قبل التحصيل', balanceBefore)}
+${moneyBlock('المتبقي بعد التحصيل', balanceAfter)}
 <p class="foot">${escapeHtml(inv.footerText || 'شكراً لثقتكم')}</p>
-<p class="foot">إيصال تحصيل</p>
 `;
   return thermalDoc('إيصال تحصيل', body);
 }
@@ -242,7 +239,10 @@ function printPaymentReceipt(
   customerBalance: number,
   invoiceHint?: string,
 ) {
-  printThermalHtml(buildPaymentReceiptHtml(payment, customerName, customerPhone, customerBalance, invoiceHint), "إيصال تحصيل");
+  printThermalHtml(
+    buildPaymentReceiptHtml(payment, customerName, customerPhone, customerBalance, invoiceHint),
+    'إيصال تحصيل',
+  );
 }
 
 export function Credit() {
