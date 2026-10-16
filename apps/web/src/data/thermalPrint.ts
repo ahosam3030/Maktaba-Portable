@@ -27,7 +27,13 @@ export function fieldBlock(label: string, value: string, opts?: { big?: boolean;
 }
 
 export function moneyBlock(label: string, amount: number | string, grand = false): string {
-  return fieldBlock(label, money2(amount), { big: grand, bold: true });
+  const v = money2(amount);
+  const cls = grand ? 'fld grand' : 'fld';
+  // رقم بمحاذاة اليمين (مش الشمال) حتى لا يُقص من حافة الرول
+  return `<div class="${cls}">
+  <div class="lbl">${escapePrintHtml(label)}</div>
+  <div class="val${grand ? ' big' : ''}">${v}</div>
+</div>`;
 }
 
 export function thermal80Css(): string {
@@ -45,7 +51,7 @@ body {
   font-family: Tahoma, Arial, sans-serif;
   font-size: 13px;
   line-height: 1.4;
-  padding: 4mm 5mm 8mm;
+  padding: 4mm 6mm 8mm;
   direction: rtl;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
@@ -77,23 +83,28 @@ body {
 .item .nm { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
 .item .det { font-size: 12px; margin: 2px 0; }
 .item .sum {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
   direction: ltr;
-  text-align: left;
+  unicode-bidi: isolate;
+  text-align: right;
   margin-top: 2px;
+  padding: 2px;
   font-variant-numeric: tabular-nums;
+  width: 100%;
 }
 .fld { margin: 6px 0; }
 .fld .lbl { font-size: 12px; color: #111; }
 .fld .val {
   direction: ltr;
-  text-align: left;
-  font-size: 14px;
-  font-weight: 700;
+  unicode-bidi: isolate;
+  text-align: right;
+  font-size: 15px;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  margin-top: 1px;
-  padding: 2px 0;
+  margin-top: 2px;
+  padding: 3px 2px;
+  width: 100%;
 }
 .fld .val.big { font-size: 20px; font-weight: 800; }
 .fld .val.bold { font-weight: 800; }
@@ -102,8 +113,11 @@ body {
   font-size: 24px;
   font-weight: 800;
   direction: ltr;
+  unicode-bidi: isolate;
   margin: 10px 0;
+  padding: 4px 2px;
   font-variant-numeric: tabular-nums;
+  width: 100%;
 }
 .box {
   border: 1px solid #000;
@@ -113,7 +127,7 @@ body {
 .foot { text-align: center; font-size: 11px; margin-top: 10px; }
 @media print {
   html, body { width: 80mm; }
-  body { padding: 3mm 4mm 6mm; }
+  body { padding: 3mm 5mm 6mm; }
 }
 `.trim();
 }
