@@ -1,9 +1,7 @@
 /**
- * مولّد CODE128B بسيط → Data URL PNG (بدون مكتبات خارجية)
- * مناسب لملصقات الباركود أوفلاين داخل Electron.
+ * CODE128B → SVG مضمّن للطباعة الحرارية (أوفلاين، بدون img/data-url)
  */
 
-/** أنماط CODE128: كل قيمة 11 بت كشريط/فراغ (1=شريط أسود، 0=فراغ) */
 const PATTERNS: string[] = [
   '11011001100','11001101100','11001100110','10010011000','10010001100','10001001100','10011001000','10011000100','10001100100','11001001000',
   '11001000100','11000100100','10110011100','10011011100','10011001110','10111001100','10011101100','10011100110','11001110010','11001011100',
@@ -22,23 +20,13 @@ const START_B = 104;
 const STOP = 106;
 
 function codeValue(ch: number): number {
-  // CODE128B: ASCII 32..127 → 0..95
   if (ch >= 32 && ch <= 127) return ch - 32;
-  return 0; // fallback space
+  return 0;
 }
 
-/** يرسم CODE128 على canvas ويرجع data URL */
-export function code128DataUrl(
-  text: string,
-  opts?: { height?: number; moduleWidth?: number; margin?: number },
-): string {
+function encodeBinary(text: string): string {
   const raw = String(text || '').trim();
   if (!raw) return '';
-
-  const height = Math.max(12, opts?.height ?? 40);
-  const moduleWidth = Math.max(1, opts?.moduleWidth ?? 2);
-  const margin = Math.max(0, opts?.margin ?? 4);
-
   const codes: number[] = [START_B];
   let checksum = START_B;
   for (let i = 0; i < raw.length; i++) {
@@ -49,40 +37,64 @@ export function code128DataUrl(
   codes.push(checksum % 103);
   codes.push(STOP);
 
-  // كل رمز 11 وحدة، ورمز التوقف + شريطين إضافيين (نمط التوقف في الجدول 13 بت تقريباً)
-  // نمط STOP القياسي: 1100011101011
-  const stopExtra = '11'; // termination bars
-
   let binary = '';
-  for (let i = 0; i < codes.length; i++) {
-    const idx = codes[i];
-    if (idx === STOP) {
-      binary += '1100011101011'; // full stop pattern
-    } else {
-      binary += PATTERNS[idx] || PATTERNS[0];
-    }
+  for (const idx of codes) {
+    if (idx === STOP) binary += '1100011101011';
+    else binary += PATTERNS[idx] || PATTERNS[0];
   }
-  binary += stopExtra;
+  binary += '11';
+  return binary;
+}
 
+/** SVG أسود/أبيض يطبع بثبات على الطابعات الحرارية */
+export function code128Svg(
+  text: string,
+  opts?: { height?: number; moduleWidth?: number },
+): string {
+  const binary = encodeBinary(text);
+  if (!binary) return '';
+
+  const height = Math.max(16, opts?.height ?? 36);
+  const mw = Math.max(1, opts?.moduleWidth ?? 2);
+  const quiet = mw * 10;
+  const width = quiet * 2 + binary.length * mw;
+
+  let x = quiet;
+  const rects: string[] = [];
+  for (let i = 0; i < binary.length; i++) {
+    if (binary[i] === '1') {
+      rects.push(`<rect x="${x}" y="0" width="${mw}" height="${height}" fill="#000"/>`);
+    }
+    x += mw;
+  }
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" shape-rendering="crispEdges" style="width:100%;height:${height}px;max-width:100%;display:block;margin:0 auto;background:#fff">${rects.join('')}</svg>`;
+}
+
+/** توافق قديم */
+export function code128DataUrl(
+  text: string,
+  opts?: { height?: number; moduleWidth?: number; margin?: number },
+): string {
+  const binary = encodeBinary(text);
+  if (!binary || typeof document === 'undefined') return '';
+  const height = Math.max(12, opts?.height ?? 40);
+  const moduleWidth = Math.max(1, opts?.moduleWidth ?? 2);
+  const margin = Math.max(0, opts?.margin ?? 4);
   const width = margin * 2 + binary.length * moduleWidth;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) return '';
-
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = '#000000';
-
+  ctx.fillStyle = '#000';
   let x = margin;
   for (let i = 0; i < binary.length; i++) {
-    if (binary[i] === '1') {
-      ctx.fillRect(x, 0, moduleWidth, height);
-    }
+    if (binary[i] === '1') ctx.fillRect(x, 0, moduleWidth, height);
     x += moduleWidth;
   }
-
   try {
     return canvas.toDataURL('image/png');
   } catch {

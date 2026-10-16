@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
 import { loadInvoiceSettings } from '../data/invoiceSettings';
 import { noticeClass, noticeKind } from './notice';
-import { code128DataUrl } from '../data/code128';
+import { code128Svg } from '../data/code128';
 
 type Product = {
   id: string;
@@ -176,7 +176,7 @@ export function Labels() {
     setSelected({});
   }
 
-  async function printLabels() {
+  function printLabels() {
     const items: Array<Product & { copies: number }> = [];
     for (const p of products) {
       const copies = selected[p.id];
@@ -197,134 +197,123 @@ export function Labels() {
     const phoneLine = phone.trim();
     const extra = extraLine.trim();
 
-    const thermal = isRoll || (isFixedSize && cols === 1);
-    const padMm = thermal ? (labelH <= 25 ? 0.6 : 1.0) : 2;
-    const tiny = labelH <= 12;
-    const bcH = thermal
-      ? (tiny ? Math.max(10, Math.round(labelH * 0.4)) : Math.max(16, Math.min(40, Math.round(labelH * 0.5))))
-      : Math.max(22, Math.min(48, Math.round(labelH * 0.7)));
-    const nameFs = tiny ? 7 : labelH <= 20 ? 8 : labelH <= 25 ? 9 : labelH <= 30 ? 10 : 11;
-    const priceFs = tiny ? 8 : labelH <= 20 ? 9 : labelH <= 30 ? 11 : 13;
-    const storeFs = tiny ? 5 : labelH <= 25 ? 7 : 8;
-    const codeFs = tiny ? 6 : labelH <= 25 ? 7 : 8;
-    const bcBarWidth = tiny ? 1.0 : labelW <= 40 ? 1.15 : labelW <= 50 ? 1.25 : 1.4;
+    // مقاس الملصق بالمم (مثل 38×25)
+    const wMm = Math.max(20, labelW || 38);
+    const hMm = Math.max(12, labelH || 25);
+    const wIn = (wMm / 25.4).toFixed(3);
+    const hIn = (hMm / 25.4).toFixed(3);
 
-    const barcodeCache = new Map<string, string>();
-    for (const p of items) {
-      const code = String(p.barcode);
-      if (!barcodeCache.has(code)) {
-        const mod = Math.max(1, Math.round(bcBarWidth));
-        barcodeCache.set(
-          code,
-          code128DataUrl(code, { height: bcH, moduleWidth: mod, margin: 2 }),
-        );
-      }
-    }
+    // ارتفاع الباركود ≈ 40% من الملصق
+    const bcH = Math.max(18, Math.min(48, Math.round(hMm * 1.6)));
+    const mod = wMm <= 40 ? 1 : 2;
+    const nameFs = hMm <= 20 ? 9 : hMm <= 25 ? 10 : 11;
+    const priceFs = hMm <= 20 ? 10 : 12;
+    const codeFs = 8;
 
     const labelsHtml = items
       .flatMap((p) =>
         Array.from({ length: p.copies }, () => {
           const price = Number(p.salePrice) || 0;
-          const tinyLabel = labelH <= 12;
-          const nameShort = tinyLabel && p.name.length > 12 ? p.name.slice(0, 11) + '…' : p.name;
           const code = String(p.barcode);
-          const img = barcodeCache.get(code) || '';
-          const barcodeHtml = img
-            ? `<img class="bc" src="${img}" alt="${escapeHtml(code)}" width="95%" height="${bcH}" />`
-            : `<div class="code" dir="ltr" style="font-size:${codeFs + 2}px;font-weight:700">${escapeHtml(code)}</div>`;
+          const name = (p.name || '').length > 18 ? (p.name || '').slice(0, 17) + '…' : p.name || '';
+          const svg = code128Svg(code, { height: bcH, moduleWidth: mod });
           return `<div class="label">
-  ${showStoreName && store && !tinyLabel ? `<div class="store">${escapeHtml(store)}</div>` : ''}
-  ${showName ? `<div class="name">${escapeHtml(nameShort)}</div>` : ''}
+  ${showStoreName && store ? `<div class="store">${escapeHtml(store)}</div>` : ''}
+  ${showName ? `<div class="name">${escapeHtml(name)}</div>` : ''}
   ${showPrice ? `<div class="price">${price.toFixed(2)}</div>` : ''}
-  ${barcodeHtml}
-  ${showBarcodeText || !img ? `<div class="code" dir="ltr">${escapeHtml(code)}</div>` : ''}
-  ${showPhone && phoneLine && !tinyLabel ? `<div class="phone" dir="ltr">${escapeHtml(phoneLine)}</div>` : ''}
-  ${extra && !tinyLabel ? `<div class="extra">${escapeHtml(extra)}</div>` : ''}
+  <div class="bcwrap">${svg}</div>
+  <div class="code" dir="ltr">${escapeHtml(code)}</div>
+  ${showPhone && phoneLine ? `<div class="phone" dir="ltr">${escapeHtml(phoneLine)}</div>` : ''}
+  ${extra ? `<div class="extra">${escapeHtml(extra)}</div>` : ''}
 </div>`;
         }),
       )
       .join('\n');
 
-    const w = window.open('', '_blank', 'width=420,height=640');
+    const w = window.open('', '_blank', 'width=480,height=640');
     if (!w) {
       setNotice('اسمح بالنوافذ المنبثقة للطباعة.');
       return;
     }
 
-    let pageCss: string;
-    let sheetCss: string;
-    let labelCss: string;
-
-    if (thermal && isFixedSize) {
-      pageCss = `size: ${labelW}mm ${labelH}mm; margin: 0;`;
-      sheetCss = 'margin:0;padding:0;width:100%;';
-      labelCss = `
-        width: ${labelW}mm; height: ${labelH}mm;
-        max-width: ${labelW}mm; max-height: ${labelH}mm;
-        box-sizing: border-box; overflow: hidden;
-        margin: 0; padding: ${padMm}mm;
-        page-break-after: always; page-break-inside: avoid;
-        border: none; border-radius: 0;
-        display: flex; flex-direction: column;
-        align-items: center; justify-content: center; gap: 1px;
-        color: #000; background: #fff;
-      `;
-    } else if (isFixedSize) {
-      pageCss = 'margin: 5mm;';
-      sheetCss = `display:flex;flex-wrap:wrap;gap:2mm;padding:2mm;`;
-      labelCss = `
-        width: ${labelW}mm; height: ${labelH}mm; box-sizing: border-box; overflow: hidden;
-        border: 0.3mm solid #ccc; padding: ${padMm}mm;
-        page-break-inside: avoid;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        color: #000; background: #fff;
-      `;
-    } else {
-      pageCss = 'margin: 6mm;';
-      sheetCss = `display:grid;grid-template-columns:repeat(${cols},1fr);gap:4mm;padding:4mm;`;
-      labelCss = `
-        min-height: 28mm; border: 1px dashed #94a3b8; border-radius: 3px; padding: 2mm;
-        page-break-inside: avoid;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
-        color: #000; background: #fff;
-      `;
-    }
-
-    w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8">
-<title>ملصقات ${isFixedSize ? labelW + 'x' + labelH + 'mm' : 'A4'}</title>
+    // XP-Q371U: المقاس بالبوصة يطابق إعداد Stock 38x25
+    w.document.write(`<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<title>ملصق ${wMm}x${hMm}mm</title>
 <style>
-  @page { ${pageCss} }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; width: 100%; background: #fff; color: #000; }
-  body { font-family: Arial, Tahoma, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .sheet { ${sheetCss} }
-  .label { ${labelCss} }
-  .store { font-size: ${storeFs}px; font-weight: 700; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .name { font-size: ${nameFs}px; font-weight: 700; line-height: 1.15; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #000; }
-  .price { font-size: ${priceFs}px; font-weight: 800; line-height: 1.1; margin: 0; color: #000; }
-  .code { font-size: ${codeFs}px; letter-spacing: 0.03em; line-height: 1.1; direction: ltr; unicode-bidi: isolate; color: #000; text-align: center; }
-  .phone, .extra { font-size: ${codeFs}px; line-height: 1.1; max-width: 100%; overflow: hidden; white-space: nowrap; color: #000; }
-  img.bc { width: 96%; max-width: 96%; height: ${bcH}px; object-fit: contain; display: block; margin: 1px auto; image-rendering: pixelated; }
-  @media print {
-    .label { border: none !important; }
-    .label:last-child { page-break-after: auto; }
+  @page {
+    size: ${wMm}mm ${hMm}mm;
+    margin: 0;
   }
-</style></head><body>
-<div class="sheet">${labelsHtml}</div>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: ${wMm}mm;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  .label {
+    width: ${wMm}mm;
+    height: ${hMm}mm;
+    max-width: ${wMm}mm;
+    max-height: ${hMm}mm;
+    padding: 0.8mm 1.2mm;
+    overflow: hidden;
+    page-break-after: always;
+    page-break-inside: avoid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: #fff;
+    color: #000;
+    font-family: Arial, Tahoma, sans-serif;
+  }
+  .label:last-child { page-break-after: auto; }
+  .store { font-size: 7px; font-weight: 700; line-height: 1.1; max-width: 100%; white-space: nowrap; overflow: hidden; }
+  .name { font-size: ${nameFs}px; font-weight: 800; line-height: 1.15; max-width: 100%; white-space: nowrap; overflow: hidden; color: #000; }
+  .price { font-size: ${priceFs}px; font-weight: 800; line-height: 1.1; color: #000; }
+  .bcwrap {
+    width: 100%;
+    max-height: ${Math.round(hMm * 0.45)}mm;
+    overflow: hidden;
+    margin: 0.4mm 0;
+    text-align: center;
+  }
+  .bcwrap svg { width: 100% !important; height: ${bcH}px !important; max-height: ${Math.round(hMm * 0.42)}mm; }
+  .code { font-size: ${codeFs}px; letter-spacing: 0.04em; direction: ltr; unicode-bidi: isolate; color: #000; margin-top: 0.3mm; }
+  .phone, .extra { font-size: 7px; color: #000; }
+  @media print {
+    html, body { width: ${wMm}mm; }
+    .label { width: ${wMm}mm; height: ${hMm}mm; }
+  }
+</style>
+</head>
+<body>
+${labelsHtml}
 <script>
-  window.onload = function() {
-    setTimeout(function() { window.print(); }, 300);
-  };
+(function(){
+  function go(){ try { window.focus(); window.print(); } catch(e) {} }
+  if (document.readyState === 'complete') setTimeout(go, 250);
+  else window.onload = function(){ setTimeout(go, 250); };
+})();
 <\/script>
-</body></html>`);
+</body>
+</html>`);
     w.document.close();
+
     const totalCopies = items.reduce((s, i) => s + i.copies, 0);
-    const sizeNote = isFixedSize ? ` — مقاس ${labelW}×${labelH} مم` : ' — ورقة A4';
     setNotice(
-      `جاهز: ${totalCopies} ملصق${sizeNote}.` +
-        (thermal
-          ? ' في نافذة الطباعة: مقاس الورق = الملصق + هوامش صفر + بدون ملاءمة للصفحة.'
-          : ' اختر A4 إن لزم.'),
+      `جاهز: ${totalCopies} ملصق — ${wMm}×${hMm} مم (${wIn}×${hIn} in). ` +
+        'في الطباعة: اختَر Stock 38x25 + Portrait + عطّل Fit/Mirror. لو فاضي جرّب Orientation: Landscape.',
     );
   }
 
