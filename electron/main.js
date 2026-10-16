@@ -733,8 +733,21 @@ function resolveAppIcon() {
 }
 
 
-/** طباعة ملصقات بمقاس ملم — يتجنب صفحة A4 الفاضية مع درايفر Seagull */
+
+/** طباعة ملصقات: معاينة + محاولة TSPL خام لطابعات Xprinter */
 function registerLabelPrintIpc() {
+  const { exec } = require('child_process');
+  const os = require('os');
+
+  ipcMain.handle('list-printers', async () => {
+    try {
+      const printers = mainWindow ? await mainWindow.webContents.getPrintersAsync() : [];
+      return (printers || []).map((p) => ({ name: p.name, isDefault: !!p.isDefault }));
+    } catch (e) {
+      return [];
+    }
+  });
+
   ipcMain.handle('print-labels', async (_event, payload) => {
     const images = (payload && payload.images) || [];
     const widthMm = Math.max(10, Number(payload && payload.widthMm) || 38);
@@ -752,21 +765,28 @@ function registerLabelPrintIpc() {
 <style>
   @page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }
   * { margin: 0; padding: 0; }
-  html, body { width: ${widthMm}mm; height: ${heightMm}mm; background: #fff; }
+  html, body { width: ${widthMm}mm; background: #fff; }
   .page { width: ${widthMm}mm; height: ${heightMm}mm; page-break-after: always; overflow: hidden; }
   .page:last-child { page-break-after: auto; }
   img { width: ${widthMm}mm; height: ${heightMm}mm; display: block; }
-</style></head><body>${pages}</body></html>`;
+  .tools { font-family: Tahoma,Arial,sans-serif; font-size: 13px; padding: 10px; background:#f0f0f0; }
+  @media print { .tools { display: none !important; } }
+</style></head><body>
+<div class="tools">معاينة الملصق — إن ظهر المحتوى هنا والورق أبيض: استخدم «حفظ الصورة» واطبع من الرسام، أو طباعة TSPL.</div>
+${pages}
+</body></html>`;
 
+    // نافذة معاينة ظاهرة دائمًا
     const printWin = new BrowserWindow({
-      show: false,
-      width: Math.round((widthMm / 25.4) * 96) + 40,
-      height: Math.round((heightMm / 25.4) * 96) + 80,
+      show: true,
+      width: 480,
+      height: 640,
+      title: `ملصقات ${widthMm}x${heightMm}mm`,
       webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
     });
 
     await printWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
-    await new Promise((r) => setTimeout(r, 400));
+    await new Promise((r) => setTimeout(r, 500));
 
     const pageSize = {
       width: Math.round(widthMm * 1000),
@@ -782,13 +802,96 @@ function registerLabelPrintIpc() {
           pageSize,
         },
         (success, failureReason) => {
-          try {
-            printWin.close();
-          } catch (_) {}
-          resolve({ ok: !!success, error: failureReason || null });
+          // نترك نافذة المعاينة مفتوحة للمستخدم
+          resolve({ ok: !!success, error: failureReason || null, previewOpen: true });
         },
       );
     });
+  });
+
+  function buildTspl(label, widthMm, heightMm) {
+    const name = String(label.name || '')
+      .replace(/"/g, "'")
+      .slice(0, 28);
+    const price = Number(label.price || 0).toFixed(2);
+    const code = String(label.barcode || '').replace(/"/g, '');
+    const copies = Math.max(1, Math.min(50, Number(label.copies) || 1));
+    // TSPL — شائع على Xprinter
+    const lines = [
+      `SIZE ${widthMm} mm,${heightMm} mm`,
+      'GAP 2 mm,0 mm',
+      'DENSITY 8',
+      'DIRECTION 1',
+      'REFERENCE 0,0',
+      'CLS',
+      `TEXT 16,12,"2",0,1,1,"${name}"`,
+      `TEXT 16,42,"2",0,1,1,"${price}"`,
+      `BARCODE 16,70,"128",60,1,0,2,2,"${code}"`,
+      `PRINT ${copies},1`,
+      '',
+    ];
+    return lines.join('\r\n');
+  }
+
+  function sendRawToPrinter(filePath, printerName) {
+    return new Promise((resolve) => {
+      const pn = String(printerName || '').replace(/"/g, '');
+      if (!pn) return resolve(false);
+      // copy /b إلى طابعة ويندوز (RAW)
+      const cmd = `cmd /c copy /B "${filePath}" "\\\\localhost\\${pn}"`;
+      exec(cmd, { windowsHide: true, timeout: 20000 }, (err) => {
+        if (!err) return resolve(true);
+        const cmd2 = `cmd /c print /D:"\\\\localhost\\${pn}" "${filePath}"`;
+        exec(cmd2, { windowsHide: true, timeout: 20000 }, (err2) => resolve(!err2));
+      });
+    });
+  }
+
+  ipcMain.handle('print-labels-tspl', async (_event, payload) => {
+    const labels = (payload && payload.labels) || [];
+    const widthMm = Math.max(10, Number(payload && payload.widthMm) || 38);
+    const heightMm = Math.max(10, Number(payload && payload.heightMm) || 25);
+    if (!labels.length) return { ok: false, error: 'no-labels' };
+
+    let printerName = payload && payload.printerName;
+    if (!printerName) {
+      try {
+        const printers = mainWindow ? await mainWindow.webContents.getPrintersAsync() : [];
+        const hit =
+          (printers || []).find((p) => /xp-?q|xprinter|371|380|label/i.test(p.name)) ||
+          (printers || []).find((p) => p.isDefault) ||
+          (printers || [])[0];
+        printerName = hit ? hit.name : '';
+      } catch (_) {
+        printerName = '';
+      }
+    }
+    if (!printerName) return { ok: false, error: 'no-printer' };
+
+    const tmpDir = path.join(os.tmpdir(), 'maktaba-labels');
+    try {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    } catch (_) {}
+
+    let okCount = 0;
+    for (let i = 0; i < labels.length; i++) {
+      const tspl = buildTspl(labels[i], widthMm, heightMm);
+      const filePath = path.join(tmpDir, `label-${Date.now()}-${i}.tspl`);
+      fs.writeFileSync(filePath, tspl, 'ascii');
+      const ok = await sendRawToPrinter(filePath, printerName);
+      try {
+        fs.unlinkSync(filePath);
+      } catch (_) {}
+      if (ok) okCount++;
+    }
+
+    return {
+      ok: okCount > 0,
+      printerName,
+      printed: okCount,
+      total: labels.length,
+      error: okCount ? null : 'raw-print-failed',
+    };
   });
 }
 

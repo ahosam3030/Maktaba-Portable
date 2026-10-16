@@ -7,8 +7,16 @@ declare global {
         widthMm: number;
         heightMm: number;
       }) => Promise<{ ok?: boolean; error?: string | null }>;
+      printLabelsTspl?: (p: {
+        labels: Array<{ name: string; price: number; barcode: string; copies: number }>;
+        widthMm: number;
+        heightMm: number;
+        printerName?: string;
+      }) => Promise<{ ok?: boolean; error?: string | null; printerName?: string; printed?: number }>;
+      listPrinters?: () => Promise<Array<{ name: string; isDefault?: boolean }>>;
     };
   }
+}
 }
 import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../data/api';
@@ -233,31 +241,40 @@ export function Labels() {
       return;
     }
 
-    // طباعة سطح المكتب بمقاس الملصق (يتفادى صفحة A4 البيضاء)
+    // 1) المعاينة دائمًا ظاهرة
+    openLabelPreview(images, wMm, hMm);
+
+    // 2) محاولة طباعة TSPL خام (أنسب لـ Xprinter من HTML)
     const desktop = window.maktabaDesktop;
-    if (desktop && typeof desktop.printLabels === 'function') {
-      setNotice(`جاري إرسال ${images.length} ملصق (${wMm}×${hMm} مم) للطابعة…`);
+    if (desktop && typeof desktop.printLabelsTspl === 'function') {
+      const labels = items.map((p) => ({
+        name: p.name || '',
+        price: Number(p.salePrice) || 0,
+        barcode: String(p.barcode),
+        copies: p.copies,
+      }));
+      setNotice(`معاينة جاهزة — جاري إرسال TSPL للطابعة…`);
       desktop
-        .printLabels({ images, widthMm: wMm, heightMm: hMm })
+        .printLabelsTspl({ labels, widthMm: wMm, heightMm: hMm })
         .then((res) => {
-          if (res && res.ok === false) {
-            setNotice(`تعذرت الطباعة: ${res.error || 'غير معروف'} — جرّب حفظ الصورة من المعاينة.`);
-            openLabelPreview(images, wMm, hMm);
+          if (res && res.ok) {
+            setNotice(
+              `تم الإرسال لـ ${res.printerName || 'الطابعة'} (${res.printed}/${labels.length}). إن بقي الورق أبيض: من المعاينة حمّل الصورة واطبع من الرسام.`,
+            );
           } else {
-            setNotice(`تم إرسال ${images.length} ملصق للطابعة (${wMm}×${hMm} مم).`);
+            setNotice(
+              `تعذر TSPL (${res?.error || 'فشل'}). من نافذة المعاينة: اطبع يدويًا أو حمّل PNG وافتحه من الرسام → طباعة.`,
+            );
           }
         })
         .catch(() => {
-          setNotice('تعذرت طباعة سطح المكتب — فتح المعاينة…');
-          openLabelPreview(images, wMm, hMm);
+          setNotice('تعذر الإرسال المباشر — استخدم المعاينة أو حفظ الصورة.');
         });
-      return;
+    } else {
+      setNotice(
+        `تم تجهيز ${images.length} ملصق. من المعاينة اضغط طباعة واختر XP-Q371U بمقاس ${wMm}×${hMm}.`,
+      );
     }
-
-    openLabelPreview(images, wMm, hMm);
-    setNotice(
-      `تم تجهيز ${images.length} ملصق (${wMm}×${hMm} مم). من حوار الطباعة اختَر مقاس 38x25 وعطّل Fit.`,
-    );
   }
 
   function openLabelPreview(images: string[], wMm: number, hMm: number) {
