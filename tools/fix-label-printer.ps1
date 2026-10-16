@@ -1,34 +1,24 @@
 ﻿#Requires -Version 5.1
-# Fix Xprinter label printer for 38x25 mm stickers + send a test label
+# Diagnose + test Xprinter label printer (blank sticker troubleshooting)
 $ErrorActionPreference = 'Continue'
 
 Write-Host ""
 Write-Host "========================================"
-Write-Host "  Label printer setup 38x25 mm"
+Write-Host "  Xprinter blank-label diagnostics"
 Write-Host "========================================"
 Write-Host ""
 
 $printers = @()
-try {
-  $printers = @(Get-Printer -ErrorAction Stop)
-} catch {
-  Write-Host "Cannot list printers: $_"
-  Write-Host "Try running as Administrator."
-  exit 1
+try { $printers = @(Get-Printer -ErrorAction Stop) } catch {
+  Write-Host "Cannot list printers: $_"; exit 1
 }
 
-$match = $printers | Where-Object {
-  $_.Name -match 'XP-?Q|Xprinter|371|380|Q371|label'
-} | Select-Object -First 1
-
+$match = $printers | Where-Object { $_.Name -match 'XP-?Q|Xprinter|371|380|Q371|label' } | Select-Object -First 1
 if (-not $match) {
-  Write-Host "Xprinter not auto-detected. Available printers:"
+  Write-Host "Available printers:"
   $i = 1
-  foreach ($p in $printers) {
-    Write-Host ("  [{0}] {1}" -f $i, $p.Name)
-    $i++
-  }
-  $choice = Read-Host "Enter printer number or full name"
+  foreach ($p in $printers) { Write-Host ("  [{0}] {1}" -f $i, $p.Name); $i++ }
+  $choice = Read-Host "Enter number or full name"
   if ($choice -match '^\d+$') {
     $idx = [int]$choice - 1
     if ($idx -ge 0 -and $idx -lt $printers.Count) { $match = $printers[$idx] }
@@ -36,66 +26,100 @@ if (-not $match) {
     $match = $printers | Where-Object { $_.Name -eq $choice } | Select-Object -First 1
   }
 }
-
-if (-not $match) {
-  Write-Host "No printer selected."
-  exit 1
-}
+if (-not $match) { Write-Host "No printer selected."; exit 1 }
 
 $printerName = $match.Name
 Write-Host ("Printer: {0}" -f $printerName)
+Write-Host ("Driver : {0}" -f $match.DriverName)
+Write-Host ("Port   : {0}" -f $match.PortName)
+Write-Host ("Status : {0}" -f $match.PrinterStatus)
 
 try {
   $ws = New-Object -ComObject WScript.Network
   $ws.SetDefaultPrinter($printerName)
-  Write-Host "Set as default printer."
-} catch {
-  Write-Host ("Could not set default: {0}" -f $_)
+  Write-Host "Set as default."
+} catch {}
+
+# Detect Seagull driver (often blanks third-party prints)
+$isSeagull = $false
+if ($match.DriverName -match 'Seagull|BarTender') {
+  $isSeagull = $true
+  Write-Host ""
+  Write-Host "WARNING: Seagull/BarTender driver detected." -ForegroundColor Yellow
+  Write-Host "This driver often prints BLANK from apps other than BarTender." -ForegroundColor Yellow
+  Write-Host "Recommended: install official Xprinter driver from xprintertech.com" -ForegroundColor Yellow
+  Write-Host ""
 }
-
-Write-Host ""
-Write-Host "Opening printer preferences..."
-Write-Host "Set these options then click OK/Apply:"
-Write-Host "  Stock / Media Size : 38x25"
-Write-Host "  Orientation        : Portrait (try Landscape if blank)"
-Write-Host "  Mirror / Negative  : OFF"
-Write-Host "  Type               : Labels With Gaps"
-Write-Host "  Gap Height         : 0.08 in"
-Write-Host ""
-
-try {
-  Start-Process "rundll32.exe" -ArgumentList "printui.dll,PrintUIEntry /e /n `"$printerName`""
-} catch {
-  Write-Host "Could not open preferences UI."
-}
-
-Write-Host "After you click OK/Apply in the printer window, press Enter here..."
-$null = Read-Host
-
-Write-Host "Sending TEST label (black box + text)..."
-
-Add-Type -AssemblyName System.Drawing
 
 $tmpDir = Join-Path $env:TEMP "maktaba-printer-fix"
 New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
-$pngPath = Join-Path $tmpDir "test-label.png"
 
+# --- Test A: Windows printer test page ---
+Write-Host ""
+Write-Host "[A] Windows built-in test page..."
+try {
+  $p = Get-CimInstance -ClassName Win32_Printer -Filter ("Name='" + $printerName.Replace("'","''") + "'")
+  if ($p) {
+    $null = Invoke-CimMethod -InputObject $p -MethodName PrintTestPage
+    Write-Host "  Sent Windows test page. Check if ANYTHING printed."
+  }
+} catch {
+  Write-Host ("  Failed: {0}" -f $_)
+}
+
+Write-Host "Press Enter after checking the Windows test page..."
+$null = Read-Host
+
+# --- Test B: TSPL raw (Xprinter language) ---
+Write-Host "[B] TSPL raw command (black box)..."
+$tspl = @"
+SIZE 38 mm,25 mm
+GAP 2 mm,0 mm
+DENSITY 15
+SPEED 2
+DIRECTION 1
+REFERENCE 0,0
+CLS
+BOX 10,10,290,190,5
+TEXT 40,70,"3",0,1,1,"TEST"
+PRINT 1,1
+"@
+$tsplPath = Join-Path $tmpDir "test.tspl"
+[System.IO.File]::WriteAllText($tsplPath, $tspl.Replace("`n","`r`n"), [System.Text.Encoding]::ASCII)
+
+$tsplOk = $false
+# Try copy to printer share
+$targets = @(
+  ("\\localhost\" + $printerName),
+  ("\\" + $env:COMPUTERNAME + "\" + $printerName)
+)
+foreach ($t in $targets) {
+  try {
+    $cmd = 'cmd /c copy /B "' + $tsplPath + '" "' + $t + '"'
+    Write-Host ("  Trying: {0}" -f $t)
+    cmd /c $cmd
+    if ($LASTEXITCODE -eq 0) { $tsplOk = $true; Write-Host "  TSPL sent."; break }
+  } catch {
+    Write-Host ("  {0}" -f $_)
+  }
+}
+if (-not $tsplOk) {
+  Write-Host "  TSPL copy failed (driver may block RAW)."
+}
+
+Write-Host "Press Enter after checking TSPL result..."
+$null = Read-Host
+
+# --- Test C: GDI solid black fill on 38x25 ---
+Write-Host "[C] GDI solid black label..."
+Add-Type -AssemblyName System.Drawing
 $dpi = 203
 $w = [int][Math]::Round(38 / 25.4 * $dpi)
 $h = [int][Math]::Round(25 / 25.4 * $dpi)
+$pngPath = Join-Path $tmpDir "black.png"
 $bmp = New-Object System.Drawing.Bitmap $w, $h
-$bmp.SetResolution($dpi, $dpi)
 $g = [System.Drawing.Graphics]::FromImage($bmp)
-$g.Clear([System.Drawing.Color]::White)
-$pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::Black), 4
-$g.DrawRectangle($pen, 4, 4, $w - 9, $h - 9)
-$brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::Black)
-$font = New-Object System.Drawing.Font "Arial", 14, ([System.Drawing.FontStyle]::Bold)
-$sf = New-Object System.Drawing.StringFormat
-$sf.Alignment = [System.Drawing.StringAlignment]::Center
-$sf.LineAlignment = [System.Drawing.StringAlignment]::Center
-$rect = New-Object System.Drawing.RectangleF 0, 0, $w, $h
-$g.DrawString("TEST 38x25", $font, $brush, $rect, $sf)
+$g.Clear([System.Drawing.Color]::Black)
 $g.Dispose()
 $bmp.Save($pngPath, [System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
@@ -103,53 +127,50 @@ $bmp.Dispose()
 $paperW = [int][Math]::Round(38 / 25.4 * 100)
 $paperH = [int][Math]::Round(25 / 25.4 * 100)
 
-$printOk = $false
-try {
-  $img = [System.Drawing.Image]::FromFile($pngPath)
-  $pd = New-Object System.Drawing.Printing.PrintDocument
-  $pd.PrinterSettings.PrinterName = $printerName
-  if (-not $pd.PrinterSettings.IsValid) { throw ("Printer not valid: " + $printerName) }
-  $pd.DocumentName = "MaktabaTestLabel"
-  $pd.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
+foreach ($landscape in @($false, $true)) {
+  $orient = if ($landscape) { "Landscape" } else { "Portrait" }
+  Write-Host ("  GDI {0}..." -f $orient)
   try {
-    $psize = New-Object System.Drawing.Printing.PaperSize "Maktaba38x25", $paperW, $paperH
-    $psize.RawKind = 256
-    $pd.DefaultPageSettings.PaperSize = $psize
-  } catch {}
-  $script:imgRef = $img
-  $pd.add_PrintPage({
-    param($sender, $e)
-    $e.Graphics.DrawImage($script:imgRef, $e.MarginBounds)
-    $e.HasMorePages = $false
-  })
-  $pd.Print()
-  $img.Dispose()
-  $printOk = $true
-  Write-Host "Test print sent (GDI)."
-} catch {
-  Write-Host ("GDI test failed: {0}" -f $_)
-  try {
-    $cmd = 'rundll32.exe shimgvw.dll,ImageView_PrintTo "' + $pngPath + '" "' + $printerName + '"'
-    cmd /c $cmd
-    Start-Sleep -Seconds 2
-    Write-Host "Test print sent (Photo Viewer)."
-    $printOk = $true
+    $img = [System.Drawing.Image]::FromFile($pngPath)
+    $pd = New-Object System.Drawing.Printing.PrintDocument
+    $pd.PrinterSettings.PrinterName = $printerName
+    if (-not $pd.PrinterSettings.IsValid) { throw "invalid printer" }
+    $pd.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0,0,0,0)
+    $pd.DefaultPageSettings.Landscape = $landscape
+    try {
+      $psize = New-Object System.Drawing.Printing.PaperSize "Maktaba38x25", $paperW, $paperH
+      $psize.RawKind = 256
+      $pd.DefaultPageSettings.PaperSize = $psize
+    } catch {}
+    $script:imgRef = $img
+    $pd.add_PrintPage({
+      param($sender, $e)
+      $e.Graphics.FillRectangle([System.Drawing.Brushes]::Black, $e.MarginBounds)
+      $e.Graphics.DrawImage($script:imgRef, $e.MarginBounds)
+      $e.HasMorePages = $false
+    })
+    $pd.Print()
+    $img.Dispose()
+    Write-Host ("  Sent GDI {0}." -f $orient)
   } catch {
-    Write-Host ("Photo Viewer also failed: {0}" -f $_)
+    Write-Host ("  GDI {0} failed: {1}" -f $orient, $_)
   }
+  Write-Host "  Press Enter after checking this sticker..."
+  $null = Read-Host
 }
 
 Write-Host ""
 Write-Host "========================================"
-if ($printOk) {
-  Write-Host "Check the sticker:"
-  Write-Host "  - Black box + TEST 38x25 = printer OK"
-  Write-Host "  - Fully white = driver/roll/orientation issue"
-  Write-Host "    Try Orientation = Landscape, then re-run this script."
-} else {
-  Write-Host "No print method succeeded. Check printer is Online."
-}
+Write-Host "RESULTS GUIDE"
 Write-Host "========================================"
+Write-Host "If ALL tests are blank:"
+Write-Host "  1) Thermal paper may be upside-down (coating side must face head)."
+Write-Host "  2) Seagull driver is blocking app prints -> install Xprinter native driver."
+Write-Host "  3) Density too low / head dirty / wrong gap sensor."
+Write-Host "  4) Try printing from Notepad: open Notepad, type TEST, Print to this printer."
+Write-Host ""
+Write-Host "Xprinter drivers: https://www.xprintertech.com/ or the USB CD/driver pack."
+Write-Host "After installing native driver, re-run this script."
 Write-Host ""
 Write-Host "Press Enter to exit..."
 $null = Read-Host
