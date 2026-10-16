@@ -297,9 +297,6 @@ ${pages}
     );
   }
 
-
-  }
-
   return (
     <div className="purchases-page labels-page">
       <div className="purchase-title"><div><span className="eyebrow">المخزون</span><h1>ملصقات الباركود</h1><p>اختر الأصناف والحجم ثم اطبع على الرول الحراري</p></div></div>
