@@ -144,7 +144,7 @@ function buildInvoiceHtml(sale: SaleRow, customerName: string, customerPhone?: s
     .map(
       (l, i) => `<tr>
       <td class="num">${i + 1}</td>
-      <td>${escapeHtml(l.productName || '')}</td>
+      <td class="name">${escapeHtml(l.productName || '')}${l.unit ? ` <small>(${escapeHtml(String(l.unit))})</small>` : ''}</td>
       <td class="qty">${Number(l.quantity)}</td>
       <td class="money">${Number(l.unitPrice).toFixed(2)}</td>
       <td class="money">${Number(l.lineTotal).toFixed(2)}</td>
@@ -156,36 +156,40 @@ function buildInvoiceHtml(sale: SaleRow, customerName: string, customerPhone?: s
   const remain = Number(sale.remaining ?? tot - paid);
   const dateStr = new Date(sale.saleDate).toLocaleString('en-GB');
   const brand = inv.watermarkText || inv.brandTitle || 'المركز';
+  const status =
+    paid <= 0.001 && tot > 0.001 ? 'آجل' : remain > 0.001 ? 'جزئي' : 'مسدد';
   const body = `
 <div class="center">
   <div class="brand">${escapeHtml(brand)}</div>
+  ${inv.brandSubtitle ? `<div class="sub">${escapeHtml(inv.brandSubtitle)}</div>` : ''}
   ${inv.address ? `<div class="sub">${escapeHtml(inv.address)}</div>` : ''}
   ${inv.phone ? `<div class="sub" dir="ltr">${escapeHtml(inv.phone)}</div>` : ''}
 </div>
 <hr class="hr"/>
-<div class="title">فاتورة بيع</div>
-<div class="center"><span class="badge">آجل</span></div>
-<div class="meta">رقم: <strong dir="ltr">${escapeHtml(sale.invoiceNumber)}</strong></div>
+<div class="title">فاتورة بيع — آجل</div>
+<div class="center"><span class="badge">${status}</span></div>
+<div class="meta">رقم الفاتورة: <strong dir="ltr">${escapeHtml(sale.invoiceNumber)}</strong></div>
 <div class="meta">التاريخ: <span dir="ltr">${escapeHtml(dateStr)}</span></div>
 <div class="meta">العميل: <strong>${escapeHtml(customerName)}</strong></div>
 ${customerPhone ? `<div class="meta">هاتف: <span dir="ltr">${escapeHtml(customerPhone)}</span></div>` : ''}
 <hr class="hr"/>
 <table>
-  <thead><tr><th class="num">#</th><th>الصنف</th><th class="qty">كمية</th><th class="money">سعر</th><th class="money">إجمالي</th></tr></thead>
-  <tbody>${rows || '<tr><td colspan="5" class="center">—</td></tr>'}</tbody>
+  <thead><tr><th class="num">#</th><th class="name">الصنف</th><th class="qty">ك</th><th class="money">سعر</th><th class="money">ج</th></tr></thead>
+  <tbody>${rows || '<tr><td colspan="5" class="center">لا توجد بنود — افتح تفاصيل الفاتورة ثم اطبع</td></tr>'}</tbody>
 </table>
 <hr class="hr"/>
 <div class="totals">
-  <div class="row grand"><span>الصافي</span><span dir="ltr">${tot.toFixed(2)}</span></div>
-  <div class="row"><span>المدفوع</span><span dir="ltr">${paid.toFixed(2)}</span></div>
-  <div class="row"><span>المتبقي</span><span dir="ltr">${remain.toFixed(2)}</span></div>
+  <div class="row grand"><span>إجمالي الفاتورة</span><span>${tot.toFixed(2)}</span></div>
+  <div class="row"><span>المدفوع</span><span>${paid.toFixed(2)}</span></div>
+  <div class="row"><span>المتبقي على الفاتورة</span><strong>${remain.toFixed(2)}</strong></div>
 </div>
 <p class="foot">${escapeHtml(inv.footerText || 'شكراً لثقتكم')}</p>
+<p class="foot">80mm</p>
 `;
   return thermalDoc(`فاتورة ${sale.invoiceNumber}`, body);
 }
 
-function printCreditInvoice(sale: SaleRow, customerName: string, customerPhone?: string | null) {
+function printCreditInvoicefunction printCreditInvoice(sale: SaleRow, customerName: string, customerPhone?: string | null) {
   printThermalHtml(buildInvoiceHtml(sale, customerName, customerPhone), `فاتورة ${sale.invoiceNumber}`);
 }
 
@@ -199,30 +203,41 @@ function buildPaymentReceiptHtml(
   const inv = loadInvoiceSettings();
   const brand = inv.watermarkText || inv.brandTitle || 'المركز';
   const payAt = new Date(payment.date).toLocaleString('en-GB');
+  const amount = Number(payment.amount) || 0;
+  const balanceAfter = Number(customerBalance) || 0;
+  const balanceBefore = balanceAfter + amount;
+  const method = paymentMethodLabel(payment.method);
   const body = `
 <div class="center">
   <div class="brand">${escapeHtml(brand)}</div>
+  ${inv.brandSubtitle ? `<div class="sub">${escapeHtml(inv.brandSubtitle)}</div>` : ''}
+  ${inv.address ? `<div class="sub">${escapeHtml(inv.address)}</div>` : ''}
   ${inv.phone ? `<div class="sub" dir="ltr">${escapeHtml(inv.phone)}</div>` : ''}
 </div>
 <hr class="hr"/>
-<div class="title">إيصال تحصيل</div>
-<div class="center"><span class="badge">آجل</span></div>
-<div class="amt-big">${Number(payment.amount).toFixed(2)}</div>
-<div class="meta">العميل: <strong>${escapeHtml(customerName)}</strong></div>
-${customerPhone ? `<div class="meta">هاتف: <span dir="ltr">${escapeHtml(customerPhone)}</span></div>` : ''}
-<div class="meta">الوقت: <span dir="ltr">${escapeHtml(payAt)}</span></div>
-${invoiceHint ? `<div class="meta">الفاتورة: <span dir="ltr">${escapeHtml(invoiceHint)}</span></div>` : ''}
-${payment.notes ? `<div class="meta">ملاحظة: ${escapeHtml(payment.notes)}</div>` : ''}
-<hr class="hr"/>
-<div class="totals">
-  <div class="row"><span>متبقي الحساب</span><strong dir="ltr">${Number(customerBalance).toFixed(2)}</strong></div>
+<div class="title">إيصال تحصيل آجل</div>
+<div class="center"><span class="badge">تحصيل</span></div>
+<div class="amt-big">${amount.toFixed(2)}</div>
+<div class="box">
+  <div class="meta">العميل: <strong>${escapeHtml(customerName)}</strong></div>
+  ${customerPhone ? `<div class="meta">هاتف: <span dir="ltr">${escapeHtml(customerPhone)}</span></div>` : ''}
+  <div class="meta">تاريخ السداد: <span dir="ltr">${escapeHtml(payAt)}</span></div>
+  <div class="meta">طريقة الدفع: <strong>${escapeHtml(method)}</strong></div>
+  ${invoiceHint ? `<div class="meta">على فاتورة: <span dir="ltr">${escapeHtml(invoiceHint)}</span></div>` : ''}
+  ${payment.notes ? `<div class="meta">ملاحظات: ${escapeHtml(payment.notes)}</div>` : ''}
 </div>
-<p class="foot">إيصال تحصيل آجل</p>
+<div class="totals">
+  <div class="row"><span>المبلغ المحصّل</span><strong>${amount.toFixed(2)}</strong></div>
+  <div class="row"><span>الرصيد قبل التحصيل</span><span>${balanceBefore.toFixed(2)}</span></div>
+  <div class="row grand"><span>المتبقي بعد التحصيل</span><strong>${balanceAfter.toFixed(2)}</strong></div>
+</div>
+<p class="foot">${escapeHtml(inv.footerText || 'شكراً لثقتكم')}</p>
+<p class="foot">إيصال تحصيل · 80mm</p>
 `;
   return thermalDoc('إيصال تحصيل', body);
 }
 
-function printPaymentReceipt(
+function printPaymentReceiptfunction printPaymentReceipt(
   payment: PaymentRow,
   customerName: string,
   customerPhone: string | null | undefined,

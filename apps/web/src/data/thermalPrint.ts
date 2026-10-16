@@ -1,54 +1,105 @@
 /**
- * قوالب طباعة حرارية 80 مم — متوافقة مع Xprinter XP-Q807K وأشباهها.
+ * طباعة حرارية 80 مم — Xprinter XP-Q807K
+ * المنطقة القابلة للطباعة ≈ 72 مم؛ الهوامش الجانبية ضيقة لتفادي القص.
  */
 export const THERMAL_WIDTH_MM = 80;
+export const THERMAL_CONTENT_MM = 72;
 
 export function thermal80Css(extra = ''): string {
   return `
 @page { size: 80mm auto; margin: 0; }
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 80mm;
+  max-width: 80mm;
+}
 body {
   font-family: Tahoma, 'Segoe UI', Arial, sans-serif;
-  font-size: 12px;
-  line-height: 1.35;
-  color: #111;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #000;
   background: #fff;
-  width: ${THERMAL_WIDTH_MM}mm;
-  max-width: ${THERMAL_WIDTH_MM}mm;
+  width: ${THERMAL_CONTENT_MM}mm;
+  max-width: ${THERMAL_CONTENT_MM}mm;
   margin: 0 auto;
-  padding: 3mm 3mm 6mm;
+  padding: 2mm 0 5mm;
   direction: rtl;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+  overflow: hidden;
 }
 .center { text-align: center; }
-.brand { font-size: 15px; font-weight: 800; margin-bottom: 2px; }
-.sub { font-size: 10px; color: #333; margin-bottom: 2px; }
-.tags { font-size: 9px; color: #555; margin: 4px 0; }
-.hr { border: none; border-top: 1px dashed #333; margin: 6px 0; }
-.title { font-size: 13px; font-weight: 700; text-align: center; margin: 4px 0; }
-.meta { font-size: 11px; margin: 2px 0; }
-table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 11px; }
-th, td { padding: 3px 1px; vertical-align: top; text-align: right; }
-th { border-bottom: 1px solid #333; font-weight: 700; font-size: 10px; }
-td.num, th.num { text-align: center; width: 18px; }
-td.qty, th.qty { text-align: center; width: 28px; }
-td.money, th.money { text-align: left; direction: ltr; white-space: nowrap; }
-.totals { margin-top: 4px; font-size: 12px; }
-.totals .row { display: flex; justify-content: space-between; padding: 2px 0; }
-.totals .grand { font-size: 14px; font-weight: 800; border-top: 1px dashed #333; margin-top: 4px; padding-top: 4px; }
+.brand { font-size: 14px; font-weight: 800; margin-bottom: 2px; word-wrap: break-word; }
+.sub { font-size: 10px; color: #222; margin-bottom: 1px; word-wrap: break-word; }
+.tags { font-size: 9px; color: #444; margin: 3px 0; word-wrap: break-word; }
+.hr { border: none; border-top: 1px dashed #000; margin: 5px 0; }
+.title { font-size: 12px; font-weight: 700; text-align: center; margin: 3px 0; }
+.meta { font-size: 10px; margin: 2px 0; word-wrap: break-word; }
+.meta strong { font-weight: 700; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4px 0;
+  font-size: 10px;
+  table-layout: fixed;
+}
+th, td {
+  padding: 2px 1px;
+  vertical-align: top;
+  text-align: right;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+th {
+  border-bottom: 1px solid #000;
+  font-weight: 700;
+  font-size: 9px;
+}
+td.num, th.num { text-align: center; width: 12%; }
+td.name, th.name { width: 40%; }
+td.qty, th.qty { text-align: center; width: 14%; }
+td.money, th.money { text-align: left; direction: ltr; width: 17%; white-space: nowrap; }
+.totals { margin-top: 3px; font-size: 11px; }
+.totals .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 2px 0;
+}
+.totals .row span:last-child,
+.totals .row strong:last-child {
+  direction: ltr;
+  text-align: left;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.totals .grand {
+  font-size: 12px;
+  font-weight: 800;
+  border-top: 1px dashed #000;
+  margin-top: 3px;
+  padding-top: 3px;
+}
 .badge {
   display: inline-block;
-  border: 1px solid #333;
-  padding: 1px 8px;
-  font-size: 10px;
+  border: 1px solid #000;
+  padding: 1px 6px;
+  font-size: 9px;
   font-weight: 700;
+  margin: 3px 0;
+}
+.foot { text-align: center; font-size: 9px; margin-top: 6px; color: #222; word-wrap: break-word; }
+.amt-big { font-size: 18px; font-weight: 800; text-align: center; margin: 6px 0; direction: ltr; }
+.box {
+  border: 1px solid #000;
+  padding: 4px;
   margin: 4px 0;
 }
-.foot { text-align: center; font-size: 10px; margin-top: 8px; color: #333; }
-.amt-big { font-size: 20px; font-weight: 800; text-align: center; margin: 8px 0; direction: ltr; }
 @media print {
-  body { padding: 2mm 2mm 4mm; }
+  html, body { width: 80mm; }
+  body { width: ${THERMAL_CONTENT_MM}mm; max-width: ${THERMAL_CONTENT_MM}mm; padding: 1.5mm 0 4mm; }
   .no-print { display: none !important; }
 }
 ${extra}
@@ -88,11 +139,11 @@ export function printThermalHtml(htmlDocument: string, title = 'طباعة'): vo
         win?.focus();
         win?.print();
       } finally {
-        setTimeout(cleanup, 1000);
+        setTimeout(cleanup, 1200);
       }
-    }, 250);
+    }, 300);
   } catch {
-    const w = window.open('', '_blank', 'width=400,height=700');
+    const w = window.open('', '_blank', 'width=360,height=700');
     if (!w) {
       window.alert('اسمح بالنوافذ المنبثقة لطباعة الفاتورة.');
       return;
@@ -107,6 +158,7 @@ export function thermalDoc(title: string, bodyHtml: string, extraCss = ''): stri
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8"/>
+<meta name="viewport" content="width=80mm"/>
 <title>${escapePrintHtml(title)}</title>
 <style>${thermal80Css(extraCss)}</style>
 </head>

@@ -357,7 +357,7 @@ export function Sales() {
       .map(
         (l, i) => `<tr>
         <td class="num">${i + 1}</td>
-        <td>${escapeHtml(l.productName)}</td>
+        <td class="name">${escapeHtml(l.productName)}</td>
         <td class="qty">${qty(Number(l.quantity))}</td>
         <td class="money">${Number(l.unitPrice).toFixed(2)}</td>
         <td class="money">${Number(l.lineTotal).toFixed(2)}</td>
@@ -395,13 +395,13 @@ export function Sales() {
   <thead>
     <tr>
       <th class="num">#</th>
-      <th>الصنف</th>
-      <th class="qty">كمية</th>
+      <th class="name">الصنف</th>
+      <th class="qty">ك</th>
       <th class="money">سعر</th>
-      <th class="money">إجمالي</th>
+      <th class="money">ج</th>
     </tr>
   </thead>
-  <tbody>${rows || '<tr><td colspan="5" class="center">—</td></tr>'}</tbody>
+  <tbody>${rows || '<tr><td colspan="5" class="center">لا توجد بنود</td></tr>'}</tbody>
 </table>
 <hr class="hr"/>
 <div class="totals">
