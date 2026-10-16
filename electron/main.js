@@ -919,7 +919,6 @@ ${pages}
       fs.mkdirSync(tmpDir, { recursive: true });
     } catch (_) {}
 
-    // مقاس الورق بوحدة 1/100 بوصة (Windows PaperSize)
     const paperW = Math.max(1, Math.round((widthMm / 25.4) * 100));
     const paperH = Math.max(1, Math.round((heightMm / 25.4) * 100));
 
@@ -934,6 +933,7 @@ ${pages}
         continue;
       }
       const filePath = path.join(tmpDir, 'label-' + Date.now() + '-' + i + '.png');
+      const ps1Path = path.join(tmpDir, 'print-' + Date.now() + '-' + i + '.ps1');
       try {
         fs.writeFileSync(filePath, Buffer.from(m[1], 'base64'));
       } catch (e) {
@@ -941,57 +941,67 @@ ${pages}
         continue;
       }
 
-      const printerEsc = String(printerName).replace(/'/g, "''");
-      const pathEsc = filePath.replace(/'/g, "''");
-
-      // فرض مقاس الملصق + رسم بالمليمتر حتى لا يذهب المحتوى خارج الاستيكر
-      const ps = [
-        "$ErrorActionPreference='Stop'",
+      // ملف PowerShell منفصل حتى لا ينكسر param() داخل add_PrintPage
+      const ps1 = [
+        "$ErrorActionPreference = 'Stop'",
         "Add-Type -AssemblyName System.Drawing",
-        "$printer='" + printerEsc + "'",
-        "$path='" + pathEsc + "'",
-        "$wMm=" + String(widthMm),
-        "$hMm=" + String(heightMm),
-        "$paperW=" + String(paperW),
-        "$paperH=" + String(paperH),
-        "$img=[System.Drawing.Image]::FromFile($path)",
+        "$printer = @'",
+        String(printerName),
+        "'@",
+        "$path = @'",
+        filePath,
+        "'@",
+        "$wMm = " + widthMm,
+        "$hMm = " + heightMm,
+        "$paperW = " + paperW,
+        "$paperH = " + paperH,
+        "$img = [System.Drawing.Image]::FromFile($path)",
         "try {",
-        "  $pd=New-Object System.Drawing.Printing.PrintDocument",
-        "  $pd.PrinterSettings.PrinterName=$printer",
-        "  if(-not $pd.PrinterSettings.IsValid){ throw 'Printer not valid: ' + $printer }",
-        "  $pd.DocumentName='MaktabaLabel'",
-        "  $pd.DefaultPageSettings.Margins=New-Object System.Drawing.Printing.Margins(0,0,0,0)",
-        "  $pd.DefaultPageSettings.Landscape=$false",
+        "  $pd = New-Object System.Drawing.Printing.PrintDocument",
+        "  $pd.PrinterSettings.PrinterName = $printer",
+        "  if (-not $pd.PrinterSettings.IsValid) { throw \"Printer not valid: $printer\" }",
+        "  $pd.DocumentName = 'MaktabaLabel'",
+        "  $pd.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0,0,0,0)",
+        "  $pd.DefaultPageSettings.Landscape = $false",
         "  try {",
-        "    $psize=New-Object System.Drawing.Printing.PaperSize('MaktabaLabel',$paperW,$paperH)",
-        "    $psize.RawKind=256",
-        "    $pd.DefaultPageSettings.PaperSize=$psize",
+        "    $psize = New-Object System.Drawing.Printing.PaperSize('MaktabaLabel', $paperW, $paperH)",
+        "    $psize.RawKind = 256",
+        "    $pd.DefaultPageSettings.PaperSize = $psize",
         "  } catch {}",
-        "  $script:imgRef=$img",
-        "  $script:wMm=$wMm",
-        "  $script:hMm=$hMm",
+        "  $script:imgRef = $img",
+        "  $script:wMm = $wMm",
+        "  $script:hMm = $hMm",
         "  $pd.add_PrintPage({",
-        "    param($sender,$e)",
-        "    $g=$e.Graphics",
-        "    $g.PageUnit=[System.Drawing.GraphicsUnit]::Millimeter",
-        "    $g.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor",
-        "    $g.PixelOffsetMode=[System.Drawing.Drawing2D.PixelOffsetMode]::Half",
+        "    param($sender, $e)",
+        "    $g = $e.Graphics",
+        "    $g.PageUnit = [System.Drawing.GraphicsUnit]::Millimeter",
+        "    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor",
         "    $g.Clear([System.Drawing.Color]::White)",
         "    $g.DrawImage($script:imgRef, 0, 0, $script:wMm, $script:hMm)",
-        "    $e.HasMorePages=$false",
+        "    $e.HasMorePages = $false",
         "  })",
         "  $pd.Print()",
-        "} finally { $img.Dispose() }",
-      ].join('; ');
+        "}",
+        "finally {",
+        "  $img.Dispose()",
+        "}",
+      ].join('\r\n');
+
+      try {
+        fs.writeFileSync(ps1Path, ps1, 'utf8');
+      } catch (e) {
+        lastError = 'ps1-write-fail';
+        continue;
+      }
 
       const ok = await new Promise((resolve) => {
         execFile(
           'powershell.exe',
-          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps],
+          ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1Path],
           { windowsHide: true, timeout: 90000 },
           (err, _stdout, stderr) => {
             if (err) {
-              lastError = String(stderr || err.message || err).slice(0, 300);
+              lastError = String(stderr || err.message || err).slice(0, 400);
               resolve(false);
             } else resolve(true);
           },
@@ -999,6 +1009,9 @@ ${pages}
       });
       try {
         fs.unlinkSync(filePath);
+      } catch (_) {}
+      try {
+        fs.unlinkSync(ps1Path);
       } catch (_) {}
       if (ok) printed++;
     }
@@ -1012,6 +1025,7 @@ ${pages}
       error: printed > 0 ? null : lastError || 'gdi-failed',
     };
   });
+
 
 }
 
