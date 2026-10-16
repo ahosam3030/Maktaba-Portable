@@ -896,6 +896,8 @@ ${pages}
 
   ipcMain.handle('print-labels-gdi', async (_event, payload) => {
     const images = (payload && payload.images) || [];
+    const widthMm = Math.max(10, Number(payload && payload.widthMm) || 38);
+    const heightMm = Math.max(10, Number(payload && payload.heightMm) || 25);
     if (!images.length) return { ok: false, error: 'no-images' };
 
     let printerName = (payload && payload.printerName) || '';
@@ -917,6 +919,10 @@ ${pages}
       fs.mkdirSync(tmpDir, { recursive: true });
     } catch (_) {}
 
+    // مقاس الورق بوحدة 1/100 بوصة (Windows PaperSize)
+    const paperW = Math.max(1, Math.round((widthMm / 25.4) * 100));
+    const paperH = Math.max(1, Math.round((heightMm / 25.4) * 100));
+
     let printed = 0;
     let lastError = null;
 
@@ -937,28 +943,46 @@ ${pages}
 
       const printerEsc = String(printerName).replace(/'/g, "''");
       const pathEsc = filePath.replace(/'/g, "''");
-      const ps =
-        "$ErrorActionPreference='Stop';\n" +
-        "Add-Type -AssemblyName System.Drawing;\n" +
-        "$printer='" + printerEsc + "';\n" +
-        "$path='" + pathEsc + "';\n" +
-        "$img=[System.Drawing.Image]::FromFile($path);\n" +
-        "try {\n" +
-        "  $pd=New-Object System.Drawing.Printing.PrintDocument;\n" +
-        "  $pd.PrinterSettings.PrinterName=$printer;\n" +
-        "  if(-not $pd.PrinterSettings.IsValid){throw 'Printer not valid'};\n" +
-        "  $pd.DocumentName='MaktabaLabel';\n" +
-        "  $pd.DefaultPageSettings.Margins=New-Object System.Drawing.Printing.Margins(0,0,0,0);\n" +
-        "  $script:imgRef=$img;\n" +
-        "  $pd.add_PrintPage({\n" +
-        "    param($sender,$e);\n" +
-        "    $r=$e.PageBounds;\n" +
-        "    if($r.Width -lt 1 -or $r.Height -lt 1){$r=$e.MarginBounds};\n" +
-        "    $e.Graphics.DrawImage($script:imgRef,$r);\n" +
-        "    $e.HasMorePages=$false\n" +
-        "  });\n" +
-        "  $pd.Print();\n" +
-        "} finally { $img.Dispose() }\n";
+
+      // فرض مقاس الملصق + رسم بالمليمتر حتى لا يذهب المحتوى خارج الاستيكر
+      const ps = [
+        "$ErrorActionPreference='Stop'",
+        "Add-Type -AssemblyName System.Drawing",
+        "$printer='" + printerEsc + "'",
+        "$path='" + pathEsc + "'",
+        "$wMm=" + String(widthMm),
+        "$hMm=" + String(heightMm),
+        "$paperW=" + String(paperW),
+        "$paperH=" + String(paperH),
+        "$img=[System.Drawing.Image]::FromFile($path)",
+        "try {",
+        "  $pd=New-Object System.Drawing.Printing.PrintDocument",
+        "  $pd.PrinterSettings.PrinterName=$printer",
+        "  if(-not $pd.PrinterSettings.IsValid){ throw 'Printer not valid: ' + $printer }",
+        "  $pd.DocumentName='MaktabaLabel'",
+        "  $pd.DefaultPageSettings.Margins=New-Object System.Drawing.Printing.Margins(0,0,0,0)",
+        "  $pd.DefaultPageSettings.Landscape=$false",
+        "  try {",
+        "    $psize=New-Object System.Drawing.Printing.PaperSize('MaktabaLabel',$paperW,$paperH)",
+        "    $psize.RawKind=256",
+        "    $pd.DefaultPageSettings.PaperSize=$psize",
+        "  } catch {}",
+        "  $script:imgRef=$img",
+        "  $script:wMm=$wMm",
+        "  $script:hMm=$hMm",
+        "  $pd.add_PrintPage({",
+        "    param($sender,$e)",
+        "    $g=$e.Graphics",
+        "    $g.PageUnit=[System.Drawing.GraphicsUnit]::Millimeter",
+        "    $g.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor",
+        "    $g.PixelOffsetMode=[System.Drawing.Drawing2D.PixelOffsetMode]::Half",
+        "    $g.Clear([System.Drawing.Color]::White)",
+        "    $g.DrawImage($script:imgRef, 0, 0, $script:wMm, $script:hMm)",
+        "    $e.HasMorePages=$false",
+        "  })",
+        "  $pd.Print()",
+        "} finally { $img.Dispose() }",
+      ].join('; ');
 
       const ok = await new Promise((resolve) => {
         execFile(
@@ -967,7 +991,7 @@ ${pages}
           { windowsHide: true, timeout: 90000 },
           (err, _stdout, stderr) => {
             if (err) {
-              lastError = String(stderr || err.message || err).slice(0, 240);
+              lastError = String(stderr || err.message || err).slice(0, 300);
               resolve(false);
             } else resolve(true);
           },
@@ -984,13 +1008,12 @@ ${pages}
       printed,
       total: images.length,
       printerName,
+      paperMm: widthMm + 'x' + heightMm,
       error: printed > 0 ? null : lastError || 'gdi-failed',
     };
   });
 
-
 }
-
 
 function createWindow() {
   mainWindow = new BrowserWindow({
